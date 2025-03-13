@@ -16,3 +16,4 @@ async def set_user(session, tg_id)-> None:
         session.add(User(tg_id=tg_id))
         await session.commit()
 
+

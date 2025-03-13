@@ -10,7 +10,7 @@ import app.database.requests as rq
 router = Router()
 
 class Register(StatesGroup):
-       name = State()
+       fio = State()
        age = State()
        number = State()
 
@@ -29,7 +29,7 @@ async def cmd_start(message:Message):
 
 @router.message(Command('register'))
 async def register(message: Message, state:FSMContext):
-       await state.set_state(Register.name)
+       await state.set_state(Register.fio)
        await message.answer('Введите ваше ФИО. Для отмены регистрации введете /cancel')
 
 @router.message(Command('cancel'), StateFilter('*'))
@@ -37,10 +37,10 @@ async def cancelCom(message: Message, state:FSMContext):
        await state.clear()
        await message.answer('Команда отменена')
 
-@router.message(Register.name)
+@router.message(Register.fio)
 async def register_name (message: Message, state: FSMContext):
        if valid.valid_fio(message.text):
-              await state.update_data(name=message.text)
+              await state.update_data(fio=message.text)
               await state.set_state (Register.age)
               await message.answer('Введите ваш возраст числом')
        else:
@@ -50,7 +50,7 @@ async def register_name (message: Message, state: FSMContext):
 @router.message(Register.age)
 async def register_age(message: Message, state: FSMContext):
        if valid.valid_age(message.text):
-              await state.update_data(age=message.text)
+              await state.update_data(age=int(message.text))
               await state.set_state (Register.number)
               await message.answer('Отправьте Ваш номер телефона', reply_markup=kb.get_number)
        else:
@@ -60,7 +60,7 @@ async def register_age(message: Message, state: FSMContext):
 async def register_number(message: Message, state: FSMContext):
        await state.update_data(number=message.contact.phone_number)
        data = await state.get_data()
-       await message.answer(f'Ваше имя:{data["name"]}\nВаш возраст: {data["age"]}\nВаш номер: {data["number"]}')
+       await message.answer(f'Ваше имя:{data["fio"]}\nВаш возраст: {data["age"]}\nВаш номер: {data["number"]}')
        await state.clear()
 
 @router.message(Command('new_order'))
@@ -80,7 +80,7 @@ async def order_cargo_type(callback: CallbackQuery, state: FSMContext):
 @router.message(Order.cargo_weight)
 async def order_cargo_weight(message: Message, state: FSMContext):
        if valid.valid_weight(message.text):
-              await state.update_data(cargo_weight = message.text)
+              await state.update_data(cargo_weight = int(message.text))
               await state.set_state(Order.depart_loc)
               await message.answer('Введите номер цеха/корпуса отправления')
        else:
@@ -89,7 +89,7 @@ async def order_cargo_weight(message: Message, state: FSMContext):
 @router.message(Order.depart_loc)
 async def order_depart_loc(message: Message, state: FSMContext):
        if valid.valid_loc(message.text):
-              await state.update_data(depart_loc = message.text)
+              await state.update_data(depart_loc = int(message.text))
               await state.set_state(Order.goal_loc)
               await message.answer('Введите номер цеха/корпуса назначения')
        else:
@@ -98,7 +98,7 @@ async def order_depart_loc(message: Message, state: FSMContext):
 @router.message(Order.goal_loc)
 async def order_goal_loc(message: Message, state: FSMContext):
        if valid.valid_loc(message.text):
-              await state.update_data(goal_loc = message.text)
+              await state.update_data(goal_loc = int(message.text))
               await state.set_state(Order.time)
               await message.answer('Время забора груза (формат ЧЧ:ММ)')
        else:
@@ -110,8 +110,8 @@ async def order_time(message: Message, state: FSMContext):
               await state.update_data(time = message.text)
               data = await state.get_data() 
               await state.set_data(Order.final)
-              await message.answer('Заказ \nТип груза:{data[cargo_type]} \nВес груза: {data[cargo_weight]} \nЦех/корпус отправки: {data[depart_loc]} '
-              '\nЦех/корпус назначения: {data[goal_loc]} \nВремя забора груза {data[time]}', reply_markup = kb.orderKey)
+              await message.answer(f'Заказ \nТип груза:{data["cargo_type"]} \nВес груза: {data["cargo_weight"]} \nЦех/корпус отправки: {data["depart_loc"]} '
+              f'\nЦех/корпус назначения: {data["goal_loc"]} \nВремя забора груза {data["time"]}', reply_markup = kb.orderKey)
        else:
               await message.answer('Некорректные данные. Повторите попытку.')
 
