@@ -9,7 +9,10 @@ main = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='Диспетчер')]
                             resize_keyboard=True,
                             input_field_placeholder='Выберите пункт меню...')
 
-
+roles = InlineKeyboardMarkup(keyboard= [
+    [InlineKeyboardButton(text="Диспетчер", callback_data='role_disp')],
+    [InlineKeyboardButton(text="Транспортировщик", callback_data='role_driver')]
+])
 
 bothelper = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='Как сделать заказ?', 

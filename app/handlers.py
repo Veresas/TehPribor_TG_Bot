@@ -6,10 +6,13 @@ from aiogram.fsm.context import FSMContext
 import app.validators as valid
 import app.keyboards as kb
 import app.database.requests as rq
+import os
 
 router = Router()
 
 class Register(StatesGroup):
+       role = State()
+       pas = State()
        fio = State()
        age = State()
        number = State()
@@ -24,13 +27,42 @@ class Order(StatesGroup):
 
 @router.message(CommandStart())
 async def cmd_start(message:Message):
-       await rq.set_user(message.from_user.id)
-       await message.answer('Добро пожаловать в программу оптимизации логистики!', reply_markup=kb.main)
+       if rq.cheсk_user():
+              await message.answer('Добро пожаловать в программу оптимизации логистики!', reply_markup=kb.main)
+       else:
+              await message.answer('Вы еще не зарегестрированны. Пожайлуста, введите /register')
 
 @router.message(Command('register'))
 async def register(message: Message, state:FSMContext):
-       await state.set_state(Register.fio)
-       await message.answer('Введите ваше ФИО. Для отмены регистрации введете /cancel')
+       if rq.cheсk_user():
+              await state.set_state(Register.role)
+              await message.answer('Выберет роль. Для отмены регистрации введете /cancel', kb.roles)
+       else:
+              await message.answer('Вы уже зарегестрированны')
+
+@router.callback_query(Register.role, F.data.startwith('role_') )
+async def register_role(calback: CallbackQuery, state: FSMContext):
+       calbackRole = calback.data.split(_)[1]
+       await state.set_data(role = calbackRole)
+       await state.set_state(Register.pas)
+       await calback.answer()
+       await calback.message.answer('Введите выданный вам пароль')
+
+@router.message(Register.pas)
+async def register_pas(message: Message, state:FSMContext):
+       data = state.get_data()
+       if data['role'] == 'disp':
+              if message.text == os.getenv('DSPETCHER_PAS'):
+                     await state.set_state(Register.fio)
+                     await message.answer('Введите ваше ФИО')
+              else:
+                     await message.answer('Пароль неверный')
+       else:
+              if message.text == os.getenv('DRIVERS_PAS'):
+                     await state.set_state(Register.fio)
+                     await message.answer('Введите ваше ФИО')
+              else:
+                     await message.answer('Пароль неверный')
 
 @router.message(Command('cancel'), StateFilter('*'))
 async def cancelCom(message: Message, state:FSMContext):

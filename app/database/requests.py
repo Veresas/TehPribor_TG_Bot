@@ -1,19 +1,31 @@
 from app.database.models import async_session
-from app.database.models import User, Client, Driver, Cargo
+import app.database.models as tb
 from sqlalchemy import select
+import logging
 
 def conection(func):
     async def inner(*args, **kwargs):
         async with async_session() as session:
-            return await func(session, *args, **kwargs)
+            try:
+                result = await func(session, *args, **kwargs)
+                await session.commit()
+                return result
+            except Exception as e:
+                await session.rollback()
+                logging.error(f"Ошибка в функции {func.__name__}: {e}")
+                raise e
+            finally:
+                await session.close()
     return inner
 
 @conection
-async def set_user(session, tg_id)-> None:
-    user = await session.scalar(select(User).where(User.tg_id == tg_id))
+async def cheсk_user(session, tg_id)-> bool:
+    user = await session.scalar(select(tb.User).where(tb.User.tg_id == tg_id))
 
-    if not user:
-        session.add(User(tg_id=tg_id))
-        await session.commit()
+    return user is None
+
+
+@conection
+async def reg_user(session, data)-> None:
 
 
