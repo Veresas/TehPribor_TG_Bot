@@ -1,6 +1,6 @@
 from aiogram import F, Router
 from aiogram.types import Message, CallbackQuery
-from aiogram.filters import CommandStart, Command 
+from aiogram.filters import CommandStart, Command, StateFilter
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 import app.validators as valid
@@ -22,23 +22,31 @@ async def cmd_start(message:Message):
 @router.message(Command('register'))
 async def register(message: Message, state:FSMContext):
        await state.set_state(Register.name)
-       await message.answer('Введите ваше имя')
+       await message.answer('Введите ваше ФИО. Для отмены регистрации введете /cancel')
+
+@router.message(Command('cancel'), StateFilter('*'))
+async def cancelCom(message: Message, state:FSMContext):
+       await state.clear()
+       await message.answer('Команда отменена')
 
 @router.message(Register.name)
 async def register_name (message: Message, state: FSMContext):
        if valid.valid_fio(message.text):
               await state.update_data(name=message.text)
               await state.set_state (Register.age)
-              await message.answer('Введите ваш возраст')
+              await message.answer('Введите ваш возраст числом')
        else:
               await message.answer('Введены некорректные данные. Ожидалась строка содержашая 2 или 3 слова начинающихся с большой буквы.'
-              'Поторите попытку')
+              'Поторите попытку.')
 
 @router.message(Register.age)
 async def register_age(message: Message, state: FSMContext):
-       await state.update_data(age=message.text)
-       await state.set_state (Register.number)
-       await message.answer('Отправьте Ваш номер телефона', reply_markup=kb.get_number)
+       if valid.valid_age(message.text):
+              await state.update_data(age=message.text)
+              await state.set_state (Register.number)
+              await message.answer('Отправьте Ваш номер телефона', reply_markup=kb.get_number)
+       else:
+              await message.answer('Некорректные данные. Повторите попытку.')
 
 @router.message(Register.number, F.contact)
 async def register_number(message: Message, state: FSMContext):
