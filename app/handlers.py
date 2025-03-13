@@ -27,14 +27,14 @@ class Order(StatesGroup):
 
 @router.message(CommandStart())
 async def cmd_start(message:Message):
-       if rq.cheсk_user():
+       if rq.cheсk_user(tg_id=message.from_user.id):
               await message.answer('Добро пожаловать в программу оптимизации логистики!', reply_markup=kb.main)
        else:
               await message.answer('Вы еще не зарегестрированны. Пожайлуста, введите /register')
 
 @router.message(Command('register'))
 async def register(message: Message, state:FSMContext):
-       if rq.cheсk_user():
+       if rq.cheсk_user(tg_id=message.from_user.id):
               await state.set_state(Register.role)
               await message.answer('Выберет роль. Для отмены регистрации введете /cancel', kb.roles)
        else:
@@ -54,12 +54,14 @@ async def register_pas(message: Message, state:FSMContext):
        if data['role'] == 'disp':
               if message.text == os.getenv('DSPETCHER_PAS'):
                      await state.set_state(Register.fio)
+                     await state.set_data(role='Диспетчер')
                      await message.answer('Введите ваше ФИО')
               else:
                      await message.answer('Пароль неверный')
        else:
               if message.text == os.getenv('DRIVERS_PAS'):
                      await state.set_state(Register.fio)
+                     await state.set_data(role='Водитель')
                      await message.answer('Введите ваше ФИО')
               else:
                      await message.answer('Пароль неверный')
@@ -93,6 +95,8 @@ async def register_number(message: Message, state: FSMContext):
        await state.update_data(number=message.contact.phone_number)
        data = await state.get_data()
        await message.answer(f'Ваше имя:{data["fio"]}\nВаш возраст: {data["age"]}\nВаш номер: {data["number"]}')
+       data = await state.get_data()
+       await rq.reg_user(data=data, tg_id=message.from_user.id)
        await state.clear()
 
 @router.message(Command('new_order'))

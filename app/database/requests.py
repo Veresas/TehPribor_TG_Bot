@@ -20,12 +20,24 @@ def conection(func):
 
 @conection
 async def cheсk_user(session, tg_id)-> bool:
-    user = await session.scalar(select(tb.User).where(tb.User.tg_id == tg_id))
+    user = await session.scalar(select(tb.User).where(tb.User.tgId == tg_id))
 
     return user is None
 
 
 @conection
-async def reg_user(session, data)-> None:
+async def reg_user(session, data, tg_id)-> None:
+    role = await session.scalar(select(tb.Role).where(tb.Role.idRole == data['role']))
+
+    new_user = tb.User(
+        tgId = tg_id,
+        phone=data.get("number"),
+        fio=data.get("fio"),
+        age=data.get("age"),
+        roleId = role.idRole
+    )
+
+    session.add(new_user)
+
 
 
