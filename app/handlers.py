@@ -14,8 +14,8 @@ class Register(StatesGroup):
        role = State()
        pas = State()
        fio = State()
-       age = State()
        number = State()
+       final = State()
 
 class Order(StatesGroup):
        cargo_name = State()
@@ -78,28 +78,35 @@ async def cancelCom(message: Message, state:FSMContext):
 async def register_name (message: Message, state: FSMContext):
        if valid.valid_fio(message.text):
               await state.update_data(fio=message.text)
-              await state.set_state (Register.age)
-              await message.answer('Введите ваш возраст числом')
+              await state.set_state (Register.number)
+              await message.answer('Отправьте Ваш номер телефона', reply_markup=kb.get_number)
        else:
               await message.answer('Введены некорректные данные. Ожидалась строка содержашая 2 или 3 слова начинающихся с большой буквы.'
               'Поторите попытку.')
 
-@router.message(Register.age)
-async def register_age(message: Message, state: FSMContext):
-       if valid.valid_age(message.text):
-              await state.update_data(age=int(message.text))
-              await state.set_state (Register.number)
-              await message.answer('Отправьте Ваш номер телефона', reply_markup=kb.get_number)
-       else:
-              await message.answer('Некорректные данные. Повторите попытку.')
-
 @router.message(Register.number, F.contact)
 async def register_number(message: Message, state: FSMContext):
+       await state.update_data(tg_id=message.from_user.id)
        await state.update_data(number=message.contact.phone_number)
+       await state.set_state(Register.final)
        data = await state.get_data()
-       await message.answer(f'Ваше имя:{data["fio"]}\nВаш возраст: {data["age"]}\nВаш номер: {data["number"]}')
-       await rq.reg_user(data=data, tg_id=message.from_user.id)
+       await message.answer(f'Ваше имя:{data["fio"]}\nВаш номер: {data["number"]}', reply_markup=kb.regKey)
+
+@router.callback_query(Register.final, F.data == 'cmd_register_accept')
+async def new_register_accept(callback: CallbackQuery, state: FSMContext):
+       data = await state.get_data()
+       await callback.answer()
+
+       await rq.reg_user(data=data, tg_id=data["tg_id"])
        await state.clear()
+       await callback.answer()
+       await callback.message.answer('Регистрация успешна')
+
+@router.callback_query(Register.final, F.data == 'cmd_register_cancel')
+async def new_register_accept(callback: CallbackQuery, state: FSMContext):
+       await state.clear()
+       await callback.answer()
+       await callback.message.answer('Регистация отменена. Для повторной попытки введите /register')
 
 
 #Создание нового заказа
@@ -111,12 +118,13 @@ async def order_creat_start(message: Message, state:FSMContext):
 @router.message(Order.cargo_name)
 async def order_cargo_name(message: Message, state:FSMContext):
        await state.update_data(cargo_name=message.text)
+       await state.update_data(tg_id=message.from_user.id)
        await state.set_state(Order.cargo_description)
        await message.answer('Введите краткое описание груза при необходимости. Вслучае отсутсвтия описания введите "Нет"')
 
 @router.message(Order.cargo_description)
 async def order_cargo_description(message: Message, state:FSMContext):
-       await state.update_data(cargo_name=message.text)
+       await state.update_data(cargo_description=message.text)
        await state.set_state(Order.cargo_type)
        await message.answer('Пожайлуста, выберете тип груза', reply_markup= await kb.cargo_types_keyboard())
 
@@ -131,7 +139,7 @@ async def order_cargo_type(callback: CallbackQuery, state: FSMContext):
 @router.message(Order.cargo_weight)
 async def order_cargo_weight(message: Message, state: FSMContext):
        if valid.valid_weight(message.text):
-              await state.update_data(cargo_weight = int(message.text))
+              await state.update_data(cargo_weight = float(message.text))
               await state.set_state(Order.depart_loc)
               await message.answer('Введите номер цеха/корпуса отправления')
        else:
@@ -160,8 +168,8 @@ async def order_time(message: Message, state: FSMContext):
        if valid.valid_time(message.text):
               await state.update_data(time = message.text)
               data = await state.get_data() 
-              type_name = rq.get_cargo_type_name_by_id(data=data["cargo_type_id"])
-              await state.update_data(Order.final)
+              type_name = await rq.get_cargo_type_name_by_id(data=int(data["cargo_type_id"]))
+              await state.set_state(Order.final)
               await message.answer(f'Заказ \nНазвание груза:{data["cargo_name"]} \nОписание груза{data["cargo_description"]} \nТип груза:{type_name} \nВес груза: {data["cargo_weight"]} \nЦех/корпус отправки: {data["depart_loc"]} '
               f'\nЦех/корпус назначения: {data["goal_loc"]} \nВремя забора груза {data["time"]}', reply_markup = kb.orderKey)
        else:
@@ -170,16 +178,16 @@ async def order_time(message: Message, state: FSMContext):
 @router.callback_query(Order.final, F.data == 'cmd_order_accept')
 async def new_order_accept(callback: CallbackQuery, state: FSMContext):
        data = await state.get_data() 
-       await rq.add_new_order(data=data, tg_id=callback.message.from_user.id)
+       await rq.add_new_order(data=data)
        await state.clear()
-       await CallbackQuery.answer()
-       await CallbackQuery.message.answer('Заказ успешно добавлен')
+       await callback.answer()
+       await callback.message.answer('Заказ успешно добавлен')
 
 @router.callback_query(Order.final, F.data == 'cmd_order_cancel')
 async def new_order_accept(callback: CallbackQuery, state: FSMContext):
        await state.clear()
-       await CallbackQuery.answer()
-       await CallbackQuery.message.answer('Добавление заказа отменено. Для повторной попытки введите /new_order')
+       await callback.answer()
+       await callback.message.answer('Добавление заказа отменено. Для повторной попытки введите /new_order')
        
 """    
 @router.message(Command('help'))

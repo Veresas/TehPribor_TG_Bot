@@ -26,7 +26,7 @@ get_number = ReplyKeyboardMarkup(keyboard=
     resize_keyboard=True)
 
 async def cargo_types_keyboard():
-    cargo_types = await rq.get_order_types()
+    cargo_types = await rq.get_cargo_types()
 
     keyboard = InlineKeyboardBuilder()
     for cargo_id, cargo_name in cargo_types.items():
@@ -36,4 +36,9 @@ async def cargo_types_keyboard():
 orderKey = InlineKeyboardMarkup(inline_keyboard = [
     [InlineKeyboardButton(text='Подтвердить', callback_data=f'cmd_order_accept'),
      InlineKeyboardButton(text='Отменить', callback_data=f'cmd_order_cancel')]
+])
+
+regKey = InlineKeyboardMarkup(inline_keyboard = [
+    [InlineKeyboardButton(text='Подтвердить', callback_data=f'cmd_register_accept'),
+     InlineKeyboardButton(text='Отменить', callback_data=f'cmd_register_cancel')]
 ])

@@ -41,22 +41,22 @@ async def reg_user(session, data, tg_id)-> None:
     session.add(new_user)
 
 @conection
-async def get_cargo_types(session, data):
+async def get_cargo_types(session):
     result = await session.execute(select(tb.CargoType))
     cargo_types = result.scalars().all()
     return {cargo.idCargoType: cargo.cargoTypeName for cargo in cargo_types}
 
 @conection
 async def get_cargo_type_name_by_id(session, data):
-    cargo_type_name = await session.scalar(select(tb.CargoType.cargoTypeName).where(tb.CargoType.idCargoType == data))
+    cargo_type_name = await session.scalar(select(tb.CargoType).where(tb.CargoType.idCargoType == data))
 
-    return cargo_type_name
+    return cargo_type_name.cargoTypeName
 
 
 
 @conection
-async def add_new_order(session, data, tg_id)-> None:
-    disp_id = await session.scalar(select(tb.User.idUser).where(tb.User.tgId == tg_id))
+async def add_new_order(session, data)-> None:
+    disp_id = await session.scalar(select(tb.User).where(tb.User.tgId == data["tg_id"]))
     new_order = tb.Order(
         cargoName=data["cargo_name"],
         cargoDescription=data["cargo_description"],
@@ -66,7 +66,8 @@ async def add_new_order(session, data, tg_id)-> None:
         goal_loc=int(data["goal_loc"]),
         time=datetime.strptime(data["time"], '%H:%M %d.%m.%Y'),
         orderStatusId = 1,
-        dispatcherId = disp_id
+        dispatcherId = disp_id.idUser,
+        driverId=None
     )
 
     session.add(new_order)
