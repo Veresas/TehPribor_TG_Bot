@@ -40,8 +40,22 @@ async def reg_user(session, data, tg_id)-> None:
     session.add(new_user)
 
 @conection
+async def get_cargo_types(session, data):
+    result = await session.execute(select(tb.CargoType))
+    cargo_types = result.scalars().all()
+    return {cargo.idCargoType: cargo.cargoTypeName for cargo in cargo_types}
+
+@conection
+async def get_cargo_type_name_by_id(session, data):
+    cargo_type_name = await session.scalar(select(tb.CargoType.cargoTypeName).where(tb.CargoType.idCargoType == data))
+
+    return cargo_type_name
+
+
+
+@conection
 async def add_new_order(session, data)-> None:
-    
+
 
 
 

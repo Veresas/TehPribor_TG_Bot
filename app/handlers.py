@@ -124,8 +124,7 @@ async def order_cargo_description(message: Message, state:FSMContext):
 async def order_cargo_type(callback: CallbackQuery, state: FSMContext):
        await callback.answer()
        cargo_key = callback.data.split("_")[1]
-       cargo_value = kb.cargo_types.get(cargo_key) # TODO: возможно добавить в БД таблицу с типами грузов
-       await state.update_data(cargo_type = cargo_value)
+       await state.update_data(cargo_type_id = cargo_key)
        await state.set_state(Order.cargo_weight)
        await callback.message.answer('Введите вес груза (число, кг)')
 
@@ -161,8 +160,9 @@ async def order_time(message: Message, state: FSMContext):
        if valid.valid_time(message.text):
               await state.update_data(time = message.text)
               data = await state.get_data() 
+              type_name = rq.get_cargo_type_name_by_id(data=data["cargo_type_id"])
               await state.set_data(Order.final)
-              await message.answer(f'Заказ \nНазвание груза:{data["cargo_name"]} \nОписание груза{data["cargo_description"]} \nТип груза:{data["cargo_type"]} \nВес груза: {data["cargo_weight"]} \nЦех/корпус отправки: {data["depart_loc"]} '
+              await message.answer(f'Заказ \nНазвание груза:{data["cargo_name"]} \nОписание груза{data["cargo_description"]} \nТип груза:{type_name} \nВес груза: {data["cargo_weight"]} \nЦех/корпус отправки: {data["depart_loc"]} '
               f'\nЦех/корпус назначения: {data["goal_loc"]} \nВремя забора груза {data["time"]}', reply_markup = kb.orderKey)
        else:
               await message.answer('Некорректные данные. Повторите попытку.')

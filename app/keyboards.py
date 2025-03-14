@@ -1,6 +1,7 @@
 from aiogram.types import (ReplyKeyboardMarkup, KeyboardButton, 
                            InlineKeyboardMarkup, InlineKeyboardButton,)
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+import app.database.requests as rq
 
 main = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='Диспетчер')], 
                                      [KeyboardButton(text='Транспортировщик')],
@@ -26,22 +27,12 @@ get_number = ReplyKeyboardMarkup(keyboard=
     [[KeyboardButton(text='Отправить номер', request_contact=True)]],
     resize_keyboard=True)
 
-cargo_types = {
-    "details": "Детали",
-    "assemblies": "Сборочные единицы",
-    "final_assemblies": "Окончательные сборки",
-    "materials": "Материалы, комплектующие, ПКИ",
-    "water": "Вода",
-    "waste": "Производственные отходы",
-    "household_waste": "Бытовые отходы",
-    "tools": "Инструменты, оснастка",
-    "other": "Прочее",
-}
-
 async def cargo_types_keyboard():
+    cargo_types = await rq.get_order_types()
+
     keyboard = InlineKeyboardBuilder()
-    for key, value in cargo_types.items():
-        keyboard.add(InlineKeyboardButton(text=value, callback_data=f'cargo_{key}'))
+    for cargo_id, cargo_name in cargo_types.items():
+        keyboard.add(InlineKeyboardButton(text=cargo_name, callback_data=f'cargo_{cargo_id}'))
     return keyboard.adjust(1).as_markup()
 
 orderKey = InlineKeyboardMarkup(keyboard = [
