@@ -43,28 +43,28 @@ async def register(message: Message, state:FSMContext):
               await message.answer('Выберет роль. Для отмены регистрации введите /cancel', reply_markup = kb.roles)
              
 
-@router.callback_query(Register.role, F.data.startwith('role_') )
+@router.callback_query(Register.role, F.data.startswith('role_') )
 async def register_role(calback: CallbackQuery, state: FSMContext):
-       calbackRole = calback.data.split(_)[1]
-       await state.set_data(role = calbackRole)
+       calbackRole = calback.data.split('_')[1]
+       await state.update_data(role = calbackRole)
        await state.set_state(Register.pas)
        await calback.answer()
        await calback.message.answer('Введите выданный вам пароль')
 
 @router.message(Register.pas)
 async def register_pas(message: Message, state:FSMContext):
-       data = state.get_data()
+       data = await state.get_data()
        if data['role'] == 'disp':
               if message.text == os.getenv('DSPETCHER_PAS'):
                      await state.set_state(Register.fio)
-                     await state.set_data(role='Диспетчер')
+                     await state.update_data(role='Диспетчер')
                      await message.answer('Введите ваше ФИО')
               else:
                      await message.answer('Пароль неверный')
        else:
               if message.text == os.getenv('DRIVERS_PAS'):
                      await state.set_state(Register.fio)
-                     await state.set_data(role='Водитель')
+                     await state.update_data(role='Водитель')
                      await message.answer('Введите ваше ФИО')
               else:
                      await message.answer('Пароль неверный')
@@ -98,7 +98,6 @@ async def register_number(message: Message, state: FSMContext):
        await state.update_data(number=message.contact.phone_number)
        data = await state.get_data()
        await message.answer(f'Ваше имя:{data["fio"]}\nВаш возраст: {data["age"]}\nВаш номер: {data["number"]}')
-       data = await state.get_data()
        await rq.reg_user(data=data, tg_id=message.from_user.id)
        await state.clear()
 
@@ -111,13 +110,13 @@ async def order_creat_start(message: Message, state:FSMContext):
 
 @router.message(Order.cargo_name)
 async def order_cargo_name(message: Message, state:FSMContext):
-       await state.set_data(cargo_name=message.text)
+       await state.update_data(cargo_name=message.text)
        await state.set_state(Order.cargo_description)
        await message.answer('Введите краткое описание груза при необходимости. Вслучае отсутсвтия описания введите "Нет"')
 
 @router.message(Order.cargo_description)
 async def order_cargo_description(message: Message, state:FSMContext):
-       await state.set_data(cargo_name=message.text)
+       await state.update_data(cargo_name=message.text)
        await state.set_state(Order.cargo_type)
        await message.answer('Пожайлуста, выберете тип груза', reply_markup= await kb.cargo_types_keyboard())
 
@@ -162,7 +161,7 @@ async def order_time(message: Message, state: FSMContext):
               await state.update_data(time = message.text)
               data = await state.get_data() 
               type_name = rq.get_cargo_type_name_by_id(data=data["cargo_type_id"])
-              await state.set_data(Order.final)
+              await state.update_data(Order.final)
               await message.answer(f'Заказ \nНазвание груза:{data["cargo_name"]} \nОписание груза{data["cargo_description"]} \nТип груза:{type_name} \nВес груза: {data["cargo_weight"]} \nЦех/корпус отправки: {data["depart_loc"]} '
               f'\nЦех/корпус назначения: {data["goal_loc"]} \nВремя забора груза {data["time"]}', reply_markup = kb.orderKey)
        else:

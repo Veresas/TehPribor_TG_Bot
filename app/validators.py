@@ -1,7 +1,7 @@
 import re;
 
 def valid_fio(name: str) -> bool:
-    pattern = r'^[А-ЯЁ][а-яё]+\s[А-ЯЁ][а-яё]+(?:\s[А-ЯЁ][а-яё]+)?$'
+    pattern = r'^\s*[А-ЯЁ][а-яё]+\s+[А-ЯЁ][а-яё]+(?:\s+[А-ЯЁ][а-яё]+)?\s*$'
     return bool(re.match(pattern, name))
 
 def valid_age(age: str) -> bool:

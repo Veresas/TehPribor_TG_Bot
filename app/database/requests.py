@@ -28,7 +28,7 @@ async def check_user(session, tg_id)-> bool:
 
 @conection
 async def reg_user(session, data, tg_id)-> None:
-    role = await session.scalar(select(tb.Role).where(tb.Role.idRole == data['role']))
+    role = await session.scalar(select(tb.Role).where(tb.Role.roleName == data['role']))
 
     new_user = tb.User(
         tgId = tg_id,
