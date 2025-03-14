@@ -39,5 +39,10 @@ async def reg_user(session, data, tg_id)-> None:
 
     session.add(new_user)
 
+@conection
+async def add_new_order(session, data)-> None:
+    
+
+
 
 

@@ -1,4 +1,4 @@
-from sqlalchemy import BigInteger, String, ForeignKey, DateTime
+from sqlalchemy import BigInteger, String, ForeignKey, DateTime, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.ext.asyncio import AsyncAttrs, async_sessionmaker, create_async_engine
 import os 
@@ -17,7 +17,7 @@ class User (Base):
     __tablename__ = 'users'
 
     idUser: Mapped[int] = mapped_column(primary_key=True)
-    tgId=mapped_column(BigInteger, unique=True)
+    tgId: Mapped[int] = mapped_column(BigInteger, unique=True)
     phone: Mapped[str] = mapped_column(String(15))
     fio: Mapped[str] = mapped_column(String(100))
     age: Mapped[int] = mapped_column()
@@ -38,6 +38,8 @@ class Order (Base):
     __tablename__= 'orders'
 
     idOrder: Mapped[int] = mapped_column(primary_key=True)
+    cargoName: Mapped[str] = mapped_column(String(40))
+    cargoDescription: Mapped[str] = mapped_column(Text())
     cargoTypeId: Mapped[int] = mapped_column(ForeignKey('cargoTypes.idCargoType'))
     cargo_weight: Mapped[int] = mapped_column()
     depart_loc: Mapped[int] = mapped_column()
@@ -45,33 +47,24 @@ class Order (Base):
     time: Mapped[DateTime] = mapped_column(DateTime())
     orderStatusId: Mapped[int] = mapped_column(ForeignKey('orderStatuses'))
 
-    cargoType: Mapped['CargoType'] = relationship(back_populates='order')
-    orderStatus: Mapped['OrderSatus'] = relationship(back_populates='order')
+    cargoType: Mapped['CargoType'] = relationship(back_populates='orders')
+    orderStatus: Mapped['OrderStatus'] = relationship(back_populates='orders')
 
 class CargoType (Base):
     __tablename__='cargoTypes'
+
     idCargoType: Mapped[int] = mapped_column(primary_key=True)
     cargoTypeName: Mapped[str]=  mapped_column(String(50))
 
-    order: Mapped['Order'] = relationship(back_populates='cargoType')
+    orders: Mapped[list['Order']] = relationship(back_populates='cargoType')
 
-class OrderSatus (Base):
+class OrderStatus (Base):
     __tablename__= 'orderStatuses'
 
     idOrderStatus: Mapped[int] = mapped_column(primary_key=True)
     orderStatusName: Mapped[str] = mapped_column(String)
 
-    order: Mapped['Order'] = relationship(back_populates='orderStatus')
-
-"""class Cargo (Base):
-    __tablename__ = 'Cargos'
-
-    idCargo: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(25))
-    description: Mapped[str] = mapped_column(String(120))
-    cargosTypeId: Mapped[int] = mapped_column(ForeignKey('cargoType'))
-
-"""
+    orders: Mapped[list['Order']] = relationship(back_populates='orderStatus')
 
 async def async_main():
     async with engine.begin() as conn:
