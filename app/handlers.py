@@ -18,6 +18,8 @@ class Register(StatesGroup):
        number = State()
 
 class Order(StatesGroup):
+       cargo_name = State()
+       cargo_description = State()
        cargo_type = State()
        cargo_weight = State()
        depart_loc = State()
@@ -99,10 +101,24 @@ async def register_number(message: Message, state: FSMContext):
        await rq.reg_user(data=data, tg_id=message.from_user.id)
        await state.clear()
 
+
+#Создание нового заказа
 @router.message(Command('new_order'))
 async def order_creat_start(message: Message, state:FSMContext):
+       await state.set_state(Order.cargo_name)
+       await message.answer('Начало создание заказ. Введите название груза')
+
+@router.message(Order.cargo_name)
+async def order_cargo_name(message: Message, state:FSMContext):
+       await state.set_data(cargo_name=message.text)
+       await state.set_state(Order.cargo_description)
+       await message.answer('Введите краткое описание груза при необходимости. Вслучае отсутсвтия описания введите "Нет"')
+
+@router.message(Order.cargo_description)
+async def order_cargo_description(message: Message, state:FSMContext):
+       await state.set_data(cargo_name=message.text)
        await state.set_state(Order.cargo_type)
-       await message.answer('Начало создание заказ. Пожайлуста, выберете тип заказа', reply_markup= await kb.cargo_types_keyboard())
+       await message.answer('Пожайлуста, выберете тип груза', reply_markup= await kb.cargo_types_keyboard())
 
 @router.callback_query(Order.cargo_type, F.data.startswith('cargo_'))
 async def order_cargo_type(callback: CallbackQuery, state: FSMContext):
@@ -146,7 +162,7 @@ async def order_time(message: Message, state: FSMContext):
               await state.update_data(time = message.text)
               data = await state.get_data() 
               await state.set_data(Order.final)
-              await message.answer(f'Заказ \nТип груза:{data["cargo_type"]} \nВес груза: {data["cargo_weight"]} \nЦех/корпус отправки: {data["depart_loc"]} '
+              await message.answer(f'Заказ \nНазвание груза:{data["cargo_name"]} \nОписание груза{data["cargo_description"]} \nТип груза:{data["cargo_type"]} \nВес груза: {data["cargo_weight"]} \nЦех/корпус отправки: {data["depart_loc"]} '
               f'\nЦех/корпус назначения: {data["goal_loc"]} \nВремя забора груза {data["time"]}', reply_markup = kb.orderKey)
        else:
               await message.answer('Некорректные данные. Повторите попытку.')
