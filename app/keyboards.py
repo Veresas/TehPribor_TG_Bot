@@ -3,14 +3,12 @@ from aiogram.types import (ReplyKeyboardMarkup, KeyboardButton,
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 import app.database.requests as rq
 
-main = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='Диспетчер')], 
-                                     [KeyboardButton(text='Транспортировщик')],
-                                     [KeyboardButton(text='Экран заказов'),
+main = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='Экран заказов'),
                                       KeyboardButton(text='Помощь')]], 
                             resize_keyboard=True,
                             input_field_placeholder='Выберите пункт меню...')
 
-roles = InlineKeyboardMarkup(keyboard= [
+roles = InlineKeyboardMarkup(inline_keyboard= [
     [InlineKeyboardButton(text="Диспетчер", callback_data='role_disp')],
     [InlineKeyboardButton(text="Транспортировщик", callback_data='role_driver')]
 ])
@@ -35,7 +33,7 @@ async def cargo_types_keyboard():
         keyboard.add(InlineKeyboardButton(text=cargo_name, callback_data=f'cargo_{cargo_id}'))
     return keyboard.adjust(1).as_markup()
 
-orderKey = InlineKeyboardMarkup(keyboard = [
+orderKey = InlineKeyboardMarkup(inline_keyboard = [
     [InlineKeyboardButton(text='Подтвердить', callback_data=f'cmd_order_accept'),
      InlineKeyboardButton(text='Отменить', callback_data=f'cmd_order_cancel')]
 ])

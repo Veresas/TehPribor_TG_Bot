@@ -1,11 +1,14 @@
-from sqlalchemy import BigInteger, String, ForeignKey, DateTime, Text
+from sqlalchemy import BigInteger, String, ForeignKey, DateTime, Text, Float
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.ext.asyncio import AsyncAttrs, async_sessionmaker, create_async_engine
 import os 
 from dotenv import load_dotenv
 load_dotenv()
 
-engine = create_async_engine(url=os.getenv('SQLALCHEMY_URL'))
+DATABASE_URL = os.getenv('SQLALCHEMY_URL')
+if not DATABASE_URL:
+    raise ValueError("Переменная окружения SQLALCHEMY_URL не определена.")
+engine = create_async_engine(url=DATABASE_URL)
 
 async_session = async_sessionmaker(engine)
 
@@ -23,7 +26,14 @@ class User (Base):
     age: Mapped[int] = mapped_column()
     roleId: Mapped[int] = mapped_column(ForeignKey('roles.idRole'))
 
-    orders: Mapped[list['Order']] = relationship(back_populates='user')
+    disp: Mapped[list['Order']] = relationship(
+        back_populates='dispatcher',
+        foreign_keys='Order.dispatcherId'
+    )
+    driver: Mapped[list['Order']] = relationship(
+        back_populates='executor',
+        foreign_keys='Order.driverId'
+    )
     role: Mapped['Role'] = relationship(back_populates='users')
 
 class Role(Base):
@@ -41,14 +51,26 @@ class Order (Base):
     cargoName: Mapped[str] = mapped_column(String(40))
     cargoDescription: Mapped[str] = mapped_column(Text())
     cargoTypeId: Mapped[int] = mapped_column(ForeignKey('cargoTypes.idCargoType'))
-    cargo_weight: Mapped[float] = mapped_column(float)
+    cargo_weight: Mapped[float] = mapped_column(Float)
     depart_loc: Mapped[int] = mapped_column()
     goal_loc: Mapped[int] = mapped_column()
     time: Mapped[DateTime] = mapped_column(DateTime())
-    orderStatusId: Mapped[int] = mapped_column(ForeignKey('orderStatuses'))
-
+    orderStatusId: Mapped[int] = mapped_column(ForeignKey('orderStatuses.idOrderStatus'))
+    dispatcherId: Mapped[int] = mapped_column(ForeignKey('users.idUser'))
+    driverId: Mapped[int | None] = mapped_column(
+        ForeignKey('users.idUser'),
+        nullable=True
+    )
     cargoType: Mapped['CargoType'] = relationship(back_populates='orders')
     orderStatus: Mapped['OrderStatus'] = relationship(back_populates='orders')
+    dispatcher: Mapped['User'] = relationship(
+        back_populates='disp',
+        foreign_keys=[dispatcherId]
+    )
+    executor: Mapped['User | None'] = relationship(
+        back_populates='driver',
+        foreign_keys=[driverId]
+    )
 
 class CargoType (Base):
     __tablename__='cargoTypes'
@@ -62,7 +84,7 @@ class OrderStatus (Base):
     __tablename__= 'orderStatuses'
 
     idOrderStatus: Mapped[int] = mapped_column(primary_key=True)
-    orderStatusName: Mapped[str] = mapped_column(String)
+    orderStatusName: Mapped[str] = mapped_column(String(40))
 
     orders: Mapped[list['Order']] = relationship(back_populates='orderStatus')
 

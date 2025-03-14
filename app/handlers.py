@@ -29,18 +29,19 @@ class Order(StatesGroup):
 
 @router.message(CommandStart())
 async def cmd_start(message:Message):
-       if rq.cheсk_user(tg_id=message.from_user.id):
+       if await rq.check_user(tg_id=message.from_user.id):
               await message.answer('Добро пожаловать в программу оптимизации логистики!', reply_markup=kb.main)
        else:
               await message.answer('Вы еще не зарегестрированны. Пожайлуста, введите /register')
 
 @router.message(Command('register'))
 async def register(message: Message, state:FSMContext):
-       if rq.cheсk_user(tg_id=message.from_user.id):
-              await state.set_state(Register.role)
-              await message.answer('Выберет роль. Для отмены регистрации введете /cancel', kb.roles)
+       if await rq.check_user(tg_id=message.from_user.id):
+               await message.answer('Вы уже зарегестрированны')
        else:
-              await message.answer('Вы уже зарегестрированны')
+              await state.set_state(Register.role)
+              await message.answer('Выберет роль. Для отмены регистрации введите /cancel', reply_markup = kb.roles)
+             
 
 @router.callback_query(Register.role, F.data.startwith('role_') )
 async def register_role(calback: CallbackQuery, state: FSMContext):
@@ -170,7 +171,7 @@ async def order_time(message: Message, state: FSMContext):
 @router.callback_query(Order.final, F.data == 'cmd_order_accept')
 async def new_order_accept(callback: CallbackQuery, state: FSMContext):
        data = await state.get_data() 
-       await rq.add_new_order(data=data)
+       await rq.add_new_order(data=data, tg_id=callback.message.from_user.id)
        await state.clear()
        await CallbackQuery.answer()
        await CallbackQuery.message.answer('Заказ успешно добавлен')

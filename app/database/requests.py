@@ -20,10 +20,10 @@ def conection(func):
     return inner
 
 @conection
-async def cheсk_user(session, tg_id)-> bool:
+async def check_user(session, tg_id)-> bool:
     user = await session.scalar(select(tb.User).where(tb.User.tgId == tg_id))
 
-    return user is None
+    return user is not None
 
 
 @conection
@@ -55,8 +55,8 @@ async def get_cargo_type_name_by_id(session, data):
 
 
 @conection
-async def add_new_order(session, data)-> None:
-
+async def add_new_order(session, data, tg_id)-> None:
+    disp_id = await session.scalar(select(tb.User.idUser).where(tb.User.tgId == tg_id))
     new_order = tb.Order(
         cargoName=data["cargo_name"],
         cargoDescription=data["cargo_description"],
@@ -65,7 +65,8 @@ async def add_new_order(session, data)-> None:
         depart_loc=int(data["depart_loc"]),
         goal_loc=int(data["goal_loc"]),
         time=datetime.strptime(data["time"], '%H:%M %d.%m.%Y'),
-        orderStatusId = 1
+        orderStatusId = 1,
+        dispatcherId = disp_id
     )
 
     session.add(new_order)
