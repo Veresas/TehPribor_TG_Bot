@@ -42,3 +42,15 @@ regKey = InlineKeyboardMarkup(inline_keyboard = [
     [InlineKeyboardButton(text='Подтвердить', callback_data=f'cmd_register_accept'),
      InlineKeyboardButton(text='Отменить', callback_data=f'cmd_register_cancel')]
 ])
+
+async def order_select_keyboard(tg_id, order_keys, start, end):
+    user_role = await rq.get_user_role(tg_id=tg_id)
+    keyboard = InlineKeyboardBuilder()
+    if(user_role == "Водитель"):
+        for kye in order_keys:
+            keyboard.add(InlineKeyboardButton(text=kye, callback_data=f'take_order:{kye}'))
+    if start > 5:
+        keyboard.add(InlineKeyboardButton(text="<", callback_data=f'order_move_back:{start-5}-{start}'))
+    if order_keys.count == 5:
+        keyboard.add(InlineKeyboardButton(text="<", callback_data=f'order_move_forward:{end}-{start+end}'))
+

@@ -188,7 +188,14 @@ async def new_order_accept(callback: CallbackQuery, state: FSMContext):
        await state.clear()
        await callback.answer()
        await callback.message.answer('Добавление заказа отменено. Для повторной попытки введите /new_order')
-       
+
+
+#Просмотр каталога заказов
+@router.message(Command("orders"))
+async def order_catalog(message: Message):
+       orders, orderKyes = await rq.get_orders(start=1,end=5)
+       mes = "\n".join(orders)
+       await message.answer(mes, )
 """    
 @router.message(Command('help'))
 async def cmd_help(message: Message):

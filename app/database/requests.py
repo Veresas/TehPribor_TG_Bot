@@ -72,7 +72,40 @@ async def add_new_order(session, data)-> None:
 
     session.add(new_order)
 
+statuses = {
+    1: "Доступен",
+    2: "В работе",
+    3: "Завершен"
+}
 
+@conection
+async def get_orders(session, start: int, end: int):
+    limit = end - start + 1
+    offset = start - 1
+    stmt = select(tb.Order).order_by(tb.Order.time).limit(limit).offset(offset)
+    result = await session.execute(stmt)
+    orders = result.scalars().all()    
+    
+    order_keys = []
+    formatted_orders = []
+    for order in orders:
+        status = statuses.get(order.orderStatusId)
+        formatted_order = (
+            f"Заказ #{order.idOrder}:\n"
+            f"Груз '{order.cargoName}'\n"
+            f"Описание: '{order.cargoDescription}'\n"
+            f"Время: {order.time.strftime('%Y-%m-%d %H:%M')}\n"
+            f"Статус: {status}\n"
+        )
+        formatted_orders.append(formatted_order)
+        order_keys.append(order.idOrder)
+    return formatted_orders, order_keys
+
+@conection
+async def get_user_role(session, tg_id):
+    user = await session.scalar(select(tb.User).where(tb.User.tgId == tg_id))
+    role = await session.scalar(select(tb.Role).where(tb.Role.idRole == user.roleId))
+    return role.roleName
 
 
 
