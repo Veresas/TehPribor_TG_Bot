@@ -126,7 +126,7 @@ async def order_cargo_type(callback: CallbackQuery, state: FSMContext):
        cargo_key = callback.data.split("_")[1]
        await state.update_data(cargo_type_id = cargo_key)
        await state.set_state(Order.cargo_weight)
-       await callback.message.answer('Введите вес груза (число, кг)')
+       await callback.message.answer('Введите вес груза (кг)')
 
 @router.message(Order.cargo_weight)
 async def order_cargo_weight(message: Message, state: FSMContext):
@@ -135,7 +135,7 @@ async def order_cargo_weight(message: Message, state: FSMContext):
               await state.set_state(Order.depart_loc)
               await message.answer('Введите номер цеха/корпуса отправления')
        else:
-              await message.answer('Некорректные данные. Повторите попытку.')
+              await message.answer('Некорректные данные. Повторите попытку. Если число дробное - введите его через точку')
               
 @router.message(Order.depart_loc)
 async def order_depart_loc(message: Message, state: FSMContext):
@@ -151,7 +151,7 @@ async def order_goal_loc(message: Message, state: FSMContext):
        if valid.valid_loc(message.text):
               await state.update_data(goal_loc = int(message.text))
               await state.set_state(Order.time)
-              await message.answer('Время забора груза (формат ЧЧ:ММ)')
+              await message.answer('Время и дату забора груза (формат ЧЧ:ММ ДД.ММ.ГГГГ)')
        else:
               await message.answer('Некорректные данные. Повторите попытку.')
 
@@ -169,7 +169,8 @@ async def order_time(message: Message, state: FSMContext):
 
 @router.callback_query(Order.final, F.data == 'cmd_order_accept')
 async def new_order_accept(callback: CallbackQuery, state: FSMContext):
-       #TODO: обработка добавление заказа в БД
+       data = await state.get_data() 
+       await rq.add_new_order(data=data)
        await state.clear()
        await CallbackQuery.answer()
        await CallbackQuery.message.answer('Заказ успешно добавлен')

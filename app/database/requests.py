@@ -2,6 +2,7 @@ from app.database.models import async_session
 import app.database.models as tb
 from sqlalchemy import select
 import logging
+from datetime import datetime
 
 def conection(func):
     async def inner(*args, **kwargs):
@@ -55,6 +56,19 @@ async def get_cargo_type_name_by_id(session, data):
 
 @conection
 async def add_new_order(session, data)-> None:
+
+    new_order = tb.Order(
+        cargoName=data["cargo_name"],
+        cargoDescription=data["cargo_description"],
+        cargoTypeId=int(data["cargo_type_id"]),
+        cargo_weight=float(data["cargo_weight"]),
+        depart_loc=int(data["depart_loc"]),
+        goal_loc=int(data["goal_loc"]),
+        time=datetime.strptime(data["time"], '%H:%M %d.%m.%Y'),
+        orderStatusId = 1
+    )
+
+    session.add(new_order)
 
 
 

@@ -41,7 +41,7 @@ class Order (Base):
     cargoName: Mapped[str] = mapped_column(String(40))
     cargoDescription: Mapped[str] = mapped_column(Text())
     cargoTypeId: Mapped[int] = mapped_column(ForeignKey('cargoTypes.idCargoType'))
-    cargo_weight: Mapped[int] = mapped_column()
+    cargo_weight: Mapped[float] = mapped_column(float)
     depart_loc: Mapped[int] = mapped_column()
     goal_loc: Mapped[int] = mapped_column()
     time: Mapped[DateTime] = mapped_column(DateTime())

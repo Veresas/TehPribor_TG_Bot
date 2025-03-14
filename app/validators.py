@@ -9,11 +9,11 @@ def valid_age(age: str) -> bool:
     return bool(re.match(pattern, age))
 
 def valid_weight(weight: str) -> bool:
-    pattern = r"^\d+$"
+    pattern = r"^\d+([.]\d+)?$"
     return bool(re.match(pattern, weight))
 
 def valid_time(time: str) -> bool:
-    pattern = r"^([01]\d|2[0-3]):([0-5]\d)$"
+    pattern = r"^([01]\d|2[0-3]):([0-5]\d) (\d{2})\.(\d{2})\.(\d{4})$"
     return bool(re.match(pattern, time))
 
 def valid_loc(num: str) -> bool:
