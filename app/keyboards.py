@@ -8,12 +8,6 @@ main = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='Экран заказ
                             resize_keyboard=True,
                             input_field_placeholder='Выберите пункт меню...')
 
-order_list_categori = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='Сегодня'),
-                                      KeyboardButton(text='Завтра')],
-                                      [KeyboardButton(text='Все')]], 
-                            resize_keyboard=True,
-                            input_field_placeholder='Выберите пункт меню...')
-
 roles = InlineKeyboardMarkup(inline_keyboard= [
     [InlineKeyboardButton(text="Диспетчер", callback_data='role_disp')],
     [InlineKeyboardButton(text="Транспортировщик", callback_data='role_driver')]
@@ -49,14 +43,14 @@ regKey = InlineKeyboardMarkup(inline_keyboard = [
      InlineKeyboardButton(text='Отменить', callback_data=f'cmd_register_cancel')]
 ])
 
-async def order_select_keyboard(user_role, order_keys, start, end):
+async def order_select_keyboard(user_role, order_keys, start, end, button_text):
     actiual_order_list = order_keys[start:end]
     size = len(order_keys)
 
     keyboard = InlineKeyboardBuilder()
     if(user_role == "Водитель"):
         for kye in actiual_order_list:
-            keyboard.add(InlineKeyboardButton(text=str(kye), callback_data=f'take_order:{kye}'))
+            keyboard.add(InlineKeyboardButton(text=str(kye), callback_data=f'{button_text}:{kye}'))
     if start >= 5:
         keyboard.add(InlineKeyboardButton(text="<", callback_data=f'order_move_back'))
     if (size - (end + 1) > 5):
@@ -81,3 +75,8 @@ async def order_day(tg_id):
     )
     return order_list_categori
 
+
+private_order_list_kb = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='Активные заказы'),
+                                      KeyboardButton(text='История заказов')]], 
+                            resize_keyboard=True,
+                            input_field_placeholder='Выберите пункт меню...')

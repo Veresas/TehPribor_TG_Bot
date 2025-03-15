@@ -31,6 +31,10 @@ class Order_list(StatesGroup):
        start = State()
        end = State()
 
+class Privat_order_list(StatesGroup):
+       start = State()
+       end = State()
+
 @router.message(CommandStart())
 async def cmd_start(message:Message):
        if await rq.check_user(tg_id=message.from_user.id):
@@ -196,10 +200,10 @@ async def new_order_accept(callback: CallbackQuery, state: FSMContext):
 
 #Просмотр каталога заказов
 @router.message(Command("orders"))
-async def order_catalog(message: Message, state:FSMContext):
+async def order_catalog_choice(message: Message, state:FSMContext):
        await state.set_state(Order_list.start)
        userRole = await rq.get_user_role(tg_id=message.from_user.id)
-       await state.update_data(indexStart = 0, indexEnd = 5, userRole = userRole, tg_id=message.from_user.id)  
+       await state.update_data(indexStart = 0, indexEnd = 5, userRole = userRole, tg_id=message.from_user.id, button_text="take_order")  
        await message.answer("Выберете, на какой день вы хотите просмотреть лист заказов", reply_markup= await kb.order_day(message.from_user.id))
 
 @router.message(Order_list.start, F.text.lower().in_(["сегодня", "завтра", "все"]))
@@ -224,37 +228,37 @@ async def order_catalog(message: Message, state:FSMContext):
               await state.update_data(orderList = orderKyes)
               orders = await rq.get_orders(ordersKeys=orderKyes, start=0,end=5)
               mes = "\n".join(orders)
-              await message.answer(mes, reply_markup= await kb.order_select_keyboard(user_role=data["userRole"], order_keys=orderKyes, start=data["indexStart"], end=data["indexEnd"] ) )
+              await message.answer(mes, reply_markup= await kb.order_select_keyboard(user_role=data["userRole"], order_keys=orderKyes, start=data["indexStart"], end=data["indexEnd"], button_text=data["button_text"] ))
        else:
               await message.answer("Заказов нет")
 
-@router.callback_query(Order_list.start, F.data ==('order_move_back'))
+@router.callback_query(StateFilter(Order_list.start, Privat_order_list.start), F.data ==('order_move_back'))
 async def order_move_back(callback: CallbackQuery, state: FSMContext):
        await callback.answer()
        data = await state.get_data()
        await state.update_data(indexStart = (data["indexStart"]-5), indexEnd = (data["indexEnd"]-5))
        orders = await rq.get_orders(ordersKeys= data["orderList"], start=data["indexStart"]-5, end=data["indexEnd"]-5)
        mes = "\n".join(orders)
-       await callback.message.edit_text(mes, reply_markup= await kb.order_select_keyboard(user_role=data["userRole"], order_keys=data["orderList"], start=data["indexStart"] -5, end=data["indexEnd"]-5) )
+       await callback.message.edit_text(mes, reply_markup= await kb.order_select_keyboard(user_role=data["userRole"], order_keys=data["orderList"], start=data["indexStart"] -5, end=data["indexEnd"]-5, button_text=data["button_text"]))
 
-@router.callback_query(Order_list.start, F.data == ('order_move_forward'))
+@router.callback_query(StateFilter(Order_list.start, Privat_order_list.start), F.data == ('order_move_forward'))
 async def order_move_back(callback: CallbackQuery, state: FSMContext):
        await callback.answer()
        data = await state.get_data()
        await state.update_data(indexStart = (data["indexStart"]+5), indexEnd = (data["indexEnd"]+5))
        orders = await rq.get_orders(ordersKeys= data["orderList"], start=data["indexStart"]+5, end=data["indexEnd"]+5)
        mes = "\n".join(orders)
-       await callback.message.edit_text(mes, reply_markup= await kb.order_select_keyboard(user_role=data["userRole"], order_keys=data["orderList"], start=data["indexStart"] +5, end=data["indexEnd"]+5) )
+       await callback.message.edit_text(mes, reply_markup= await kb.order_select_keyboard(user_role=data["userRole"], order_keys=data["orderList"], start=data["indexStart"] +5, end=data["indexEnd"]+5, button_text=data["button_text"] ))
 
 @router.callback_query(Order_list.start, F.data.startswith('take_order:'))
-async def order_move_back(callback: CallbackQuery, state: FSMContext):
+async def order_take(callback: CallbackQuery, state: FSMContext):
        orderId = callback.data.split(':')[1]
        data = await state.get_data()
        await callback.answer()
        try:
               if await rq.take_order(tg_id=data["tg_id"], order_id=int(orderId)):
                      await callback.message.answer(f'Вы взяли заказ: {orderId}')
-                     chat_id, mes = await rq.get_user_for_send(orderId=int(orderId), driver_id=data["tg_id"])
+                     chat_id, mes = await rq.get_user_for_send(orderId=int(orderId), driver_id=data["tg_id"], action_text="Взял в работу")
                      await callback.message.bot.send_message(chat_id=chat_id, text=mes)
                      await state.clear()
               else:
@@ -262,6 +266,55 @@ async def order_move_back(callback: CallbackQuery, state: FSMContext):
        except Exception as e:
               await callback.message.answer(f'При взятии заказа произошла ошибка. Попробуйте позже')
 
+#Личные каталоги доставщиков/диспетчеров
+@router.message(Command("my_orders"))
+async def private_order_catalog_choice(message: Message, state:FSMContext):   
+       await state.set_state(Privat_order_list.start)
+       userRole = await rq.get_user_role(tg_id=message.from_user.id)
+       await state.update_data(indexStart = 0, indexEnd = 5, userRole = userRole, tg_id=message.from_user.id, button_text="complete_order")  
+       await message.answer("Выберете, категорию листа заказов", reply_markup= kb.private_order_list_kb)
+
+@router.message(Privat_order_list.start, F.text.lower().in_(["активные заказы", "история заказов"]))
+async def private_order_catalog(message: Message, state:FSMContext):
+       data = await state.get_data()
+       if message.text.lower() == "активные заказы":
+              orderKyes = await rq.get_order_keys(tg_id=data["tg_id"], isActual=True)
+       elif message.text.lower() == "история заказов":
+              orderKyes = await rq.get_order_keys(tg_id=data["tg_id"])
+       elif data["userRole"] != "Водитель":
+              if message.text.lower() == "все" :
+                     orderKyes = await rq.get_order_keys()
+              else: 
+                     await message.answer("Вы не можете просмотреть эту категорию. Выберете одну из предоставленных")
+       else:
+              await message.answer("Вы не можете просмотреть эту категорию. Выберете одну из предоставленных")
+
+       if len(orderKyes) != 0:      
+              size = len(orderKyes)
+              if size < 5:
+                     await state.update_data(indexEnd = size)
+              await state.update_data(orderList = orderKyes)
+              orders = await rq.get_orders(ordersKeys=orderKyes, start=0,end=5)
+              mes = "\n".join(orders)
+              await message.answer(mes, reply_markup= await kb.order_select_keyboard(user_role=data["userRole"], order_keys=orderKyes, start=data["indexStart"], end=data["indexEnd"], button_text=data["button_text"] ) )
+       else:
+              await message.answer("Заказов нет")
+
+@router.callback_query(Privat_order_list.start, F.data.startswith('complete_order:'))
+async def complete_take(callback: CallbackQuery, state: FSMContext):
+       orderId = callback.data.split(':')[1]
+       data = await state.get_data()
+       await callback.answer()
+       try:
+              if await rq.complete_order(tg_id=data["tg_id"], order_id=int(orderId)):
+                     await callback.message.answer(f'Вы завершили заказ: {orderId}')
+                     chat_id, mes = await rq.get_user_for_send(orderId=int(orderId), driver_id=data["tg_id"], action_text="Завершил")
+                     await callback.message.bot.send_message(chat_id=chat_id, text=mes)
+                     await state.clear()
+              else:
+                     await callback.message.answer(f'Этот заказ уже завершен')
+       except Exception as e:
+              await callback.message.answer(f'При завершении заказа произошла ошибка. Попробуйте позже')
 """
 
 

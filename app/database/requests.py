@@ -79,15 +79,31 @@ statuses = {
 }
 
 @conection
-async def get_order_keys(session, dateTime: datetime = None):
-    if(dateTime != None):
-        start_time = dateTime
-        end_time = dateTime + timedelta(days=1)
-        stmt = select(tb.Order).order_by(tb.Order.time).where(and_(tb.Order.time > start_time,
-                                                                    tb.Order.time < end_time))
+async def get_order_keys(session, dateTime: datetime = None, tg_id = None, isActual = False):
+
+    stmt = select(tb.Order).order_by(tb.Order.time)
+    if tg_id == None:
+        if(dateTime != None):
+            start_time = dateTime
+            end_time = dateTime + timedelta(days=1)
+            stmt = stmt.where(and_(tb.Order.time > start_time,
+                                    tb.Order.time < end_time))
+
     else:
-        stmt = select(tb.Order).order_by(tb.Order.time)
-   
+        user = await session.scalar(select(tb.User).where(tb.User.tgId == tg_id))
+        match user.roleId:
+            case 1: #Диспетчер
+                role_condition= tb.Order.dispatcherId == user.idUser
+            case 2:  # Водитель
+                role_condition = tb.Order.driverId == user.idUser
+            case _:
+                raise ValueError(f"Роль {user.roleId} не поддерживается")
+        
+        stmt = stmt.where(role_condition)
+
+        if isActual:
+            stmt = stmt.where(tb.Order.orderStatusId.in_([1,2]))
+            
     result = await session.execute(stmt)
     orders = result.scalars().all()    
     
@@ -109,16 +125,24 @@ async def get_orders(session, ordersKeys, start: int, end: int):
         formatted_orders.append(formatted_order)
     return formatted_orders
 
-def form_order(order, status = None)-> str:
-    if status == None:
-        status = statuses.get(order.orderStatusId)
-    formatted_order = (
-            f"Заказ #{order.idOrder}:\n"
-            f"Груз '{order.cargoName}'\n"
-            f"Описание: '{order.cargoDescription}'\n"
-            f"Время: {order.time.strftime('%Y-%m-%d %H:%M')}\n"
-            f"Статус: {status}\n"
-        )
+def form_order(order, status = None, witoutStatus = False)-> str:
+    if witoutStatus:
+                formatted_order = (
+                f"Заказ #{order.idOrder}:\n"
+                f"Груз '{order.cargoName}'\n"
+                f"Описание: '{order.cargoDescription}'\n"
+                f"Время: {order.time.strftime('%Y-%m-%d %H:%M')}\n"
+            )
+    else:
+        if status == None:
+            status = statuses.get(order.orderStatusId)
+        formatted_order = (
+                f"Заказ #{order.idOrder}:\n"
+                f"Груз '{order.cargoName}'\n"
+                f"Описание: '{order.cargoDescription}'\n"
+                f"Время: {order.time.strftime('%Y-%m-%d %H:%M')}\n"
+                f"Статус: {status}\n"
+            )
     return formatted_order
 
 @conection
@@ -139,7 +163,7 @@ async def chek_next_record(session, end)-> bool:
 @conection
 async def take_order(session, tg_id, order_id)-> bool:
 
-    if await check_order_status(order_id):
+    if await check_order_status(order_id=order_id, expectStatus = 1):
         user = await session.scalar(select(tb.User).where(tb.User.tgId == tg_id))
         new_data={
             "driverId": user.idUser,
@@ -158,23 +182,42 @@ async def take_order(session, tg_id, order_id)-> bool:
         return False
 
 @conection
-async def check_order_status(session, order_id)-> bool:
+async def check_order_status(session, order_id, expectStatus)-> bool:
 
     order = await session.scalar(select(tb.Order).where(tb.Order.idOrder == order_id))
 
-    return order.orderStatusId == 1
+    return order.orderStatusId == expectStatus
 
 @conection
-async def get_user_for_send(session, orderId, driver_id):
+async def get_user_for_send(session, orderId, driver_id, action_text: str):
     order = await session.scalar(select(tb.Order).where(tb.Order.idOrder == orderId))
     disp = await session.scalar(select(tb.User).where(tb.User.idUser == order.dispatcherId))
     driver = await session.scalar(select(tb.User).where(tb.User.tgId == driver_id))
-    formatted_order = form_order(order=order, status="В работе")
+    formatted_order = form_order(order=order, witoutStatus=True)
     fromatted_mes = (
         f"Траспортировщик {driver.fio}\n"
         f"Телефон: {driver.phone}\n"
-        f"Взял в работу:\n"
+        f"{action_text}:\n"
     )
     final_message = fromatted_mes + formatted_order
     return disp.tgId, final_message
 
+@conection
+async def complete_order(session, tg_id, order_id)-> bool:
+
+    if await check_order_status(order_id=order_id, expectStatus= 2):
+        user = await session.scalar(select(tb.User).where(tb.User.tgId == tg_id))
+        new_data={
+            "orderStatusId": 3
+        }
+
+        stmt = (
+            update(tb.Order)
+            .where(tb.Order.idOrder == order_id)
+            .values(**new_data)
+        )
+
+        await session.execute(stmt)
+        return True
+    else:
+        return False
