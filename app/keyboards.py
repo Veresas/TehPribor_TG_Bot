@@ -46,14 +46,13 @@ regKey = InlineKeyboardMarkup(inline_keyboard = [
 async def order_select_keyboard(user_role, order_keys, start, end, button_text):
     actiual_order_list = order_keys[start:end]
     size = len(order_keys)
-
     keyboard = InlineKeyboardBuilder()
     if(user_role == "Водитель"):
         for kye in actiual_order_list:
             keyboard.add(InlineKeyboardButton(text=str(kye), callback_data=f'{button_text}:{kye}'))
     if start >= 5:
         keyboard.add(InlineKeyboardButton(text="<", callback_data=f'order_move_back'))
-    if (size - (end + 1) > 5):
+    if (size - end>= 1):
         keyboard.add(InlineKeyboardButton(text=">", callback_data=f'order_move_forward'))
     
     return keyboard.adjust(1).as_markup()

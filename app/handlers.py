@@ -210,9 +210,9 @@ async def order_catalog_choice(message: Message, state:FSMContext):
 async def order_catalog(message: Message, state:FSMContext):
        data = await state.get_data()
        if message.text.lower() == "сегодня":
-              orderKyes = await rq.get_order_keys(dateTime=datetime.today().date())
+              orderKyes = await rq.get_order_keys(dateTime=datetime.today().date(), tg_id=data["tg_id"])
        elif message.text.lower() == "завтра":
-              orderKyes = await rq.get_order_keys(dateTime=datetime.today().date() + timedelta(days=1))
+              orderKyes = await rq.get_order_keys(dateTime=datetime.today().date() + timedelta(days=1), tg_id=data["tg_id"])
        elif data["userRole"] != "Водитель":
               if message.text.lower() == "все" :
                      orderKyes = await rq.get_order_keys()
@@ -221,7 +221,8 @@ async def order_catalog(message: Message, state:FSMContext):
        else:
               await message.answer("Вы не можете просмотреть эту категорию. Выберете одну из предоставленных")
 
-       if len(orderKyes) != 0:      
+       if len(orderKyes) != 0:
+              print(orderKyes)      
               size = len(orderKyes)
               if size < 5:
                      await state.update_data(indexEnd = size)
@@ -278,9 +279,9 @@ async def private_order_catalog_choice(message: Message, state:FSMContext):
 async def private_order_catalog(message: Message, state:FSMContext):
        data = await state.get_data()
        if message.text.lower() == "активные заказы":
-              orderKyes = await rq.get_order_keys(tg_id=data["tg_id"], isActual=True)
+              orderKyes = await rq.get_order_keys(tg_id=data["tg_id"], isActual=True, isPrivateCatalog=True)
        elif message.text.lower() == "история заказов":
-              orderKyes = await rq.get_order_keys(tg_id=data["tg_id"])
+              orderKyes = await rq.get_order_keys(tg_id=data["tg_id"], isPrivateCatalog=True)
        elif data["userRole"] != "Водитель":
               if message.text.lower() == "все" :
                      orderKyes = await rq.get_order_keys()

@@ -79,18 +79,20 @@ statuses = {
 }
 
 @conection
-async def get_order_keys(session, dateTime: datetime = None, tg_id = None, isActual = False):
+async def get_order_keys(session, dateTime: datetime = None, tg_id = None, isActual = False, isPrivateCatalog =False):
 
     stmt = select(tb.Order).order_by(tb.Order.time)
-    if tg_id == None:
+    user = await session.scalar(select(tb.User).where(tb.User.tgId == tg_id))
+    if not isPrivateCatalog:
         if(dateTime != None):
             start_time = dateTime
             end_time = dateTime + timedelta(days=1)
             stmt = stmt.where(and_(tb.Order.time > start_time,
                                     tb.Order.time < end_time))
+        if user.roleId == 2:
+            stmt = stmt.where(tb.Order.orderStatusId == 1)
 
     else:
-        user = await session.scalar(select(tb.User).where(tb.User.tgId == tg_id))
         match user.roleId:
             case 1: #Диспетчер
                 role_condition= tb.Order.dispatcherId == user.idUser
