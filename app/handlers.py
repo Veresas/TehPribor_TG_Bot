@@ -199,7 +199,7 @@ async def new_order_accept(callback: CallbackQuery, state: FSMContext):
 async def order_catalog(message: Message, state:FSMContext):
        await state.set_state(Order_list.start)
        userRole = await rq.get_user_role(tg_id=message.from_user.id)
-       await state.update_data(indexStart = 0, indexEnd = 5, userRole = userRole)  
+       await state.update_data(indexStart = 0, indexEnd = 5, userRole = userRole, tg_id=message.from_user.id)  
        await message.answer("Выберете, на какой день вы хотите просмотреть лист заказов", reply_markup=kb.order_list_categori)
 
 @router.message(Order_list.start, F.text.lower().in_(["сегодня", "завтра", "все"]))
@@ -221,7 +221,8 @@ async def order_catalog(message: Message, state:FSMContext):
               await message.answer(mes, reply_markup= await kb.order_select_keyboard(user_role=data["userRole"], order_keys=data["orderList"], start=data["indexStart"], end=data["indexEnd"] ) )
        else:
               await message.answer("Заказов нет")
-@router.callback_query(F.data ==('order_move_back'))
+
+@router.callback_query(Order_list.start, F.data ==('order_move_back'))
 async def order_move_back(callback: CallbackQuery, state: FSMContext):
        await callback.answer()
        data = await state.get_data()
@@ -230,7 +231,7 @@ async def order_move_back(callback: CallbackQuery, state: FSMContext):
        mes = "\n".join(orders)
        await callback.message.edit_text(mes, reply_markup= await kb.order_select_keyboard(user_role=data["userRole"], order_keys=data["orderList"], start=data["indexStart"] -5, end=data["indexEnd"]-5) )
 
-@router.callback_query(F.data == ('order_move_forward'))
+@router.callback_query(Order_list.start, F.data == ('order_move_forward'))
 async def order_move_back(callback: CallbackQuery, state: FSMContext):
        await callback.answer()
        data = await state.get_data()
@@ -239,10 +240,18 @@ async def order_move_back(callback: CallbackQuery, state: FSMContext):
        mes = "\n".join(orders)
        await callback.message.edit_text(mes, reply_markup= await kb.order_select_keyboard(user_role=data["userRole"], order_keys=data["orderList"], start=data["indexStart"] +5, end=data["indexEnd"]+5) )
 
-@router.callback_query(F.data.startswith('take_order:'))
+@router.callback_query(Order_list.start, F.data.startswith('take_order:'))
 async def order_move_back(callback: CallbackQuery, state: FSMContext):
-       orderId = callback.message.text.split(':')[1]
-       callback.message.answer(f'Вы взяли заказа {orderId}')
+       orderId = callback.data.split(':')[1]
+       data = await state.get_data()
+       await callback.answer()
+       try:
+              await rq.take_order(tg_id=data["tg_id"], order_id=orderId)
+              await callback.message.answer(f'Вы взяли заказ: {orderId}')
+              await state.clear()
+       except Exception as e:
+              await callback.message.answer(f'При взятии заказа произошла ошибка. Попробуйте позже')
+
 """
 
 

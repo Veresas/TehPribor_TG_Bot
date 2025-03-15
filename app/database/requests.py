@@ -1,6 +1,6 @@
 from app.database.models import async_session
 import app.database.models as tb
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, update
 import logging
 from datetime import datetime, timedelta
 
@@ -130,6 +130,23 @@ async def chek_next_record(session, end)-> bool:
     result = await session.execute(stmt)
     order = result.scalar()
     return order is not None
+
+@conection
+async def take_order(session, tg_id, order_id)-> None:
+
+    user = await session.scalar(select(tb.User).where(tb.User.tgId == tg_id))
+    new_data={
+        "driverId": user.idUser,
+        "orderStatusId": 2
+    }
+
+    stmt = (
+        update(tb.Order)
+        .where(tb.Order.idOrder == int(order_id))
+        .values(**new_data)
+    )
+
+    await session.execute(stmt)
 
 
 
