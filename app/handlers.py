@@ -1,5 +1,5 @@
-from aiogram import F, Router
-from aiogram.types import Message, CallbackQuery
+from aiogram import F, Router, Bot
+from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove
 from aiogram.filters import CommandStart, Command, StateFilter
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
@@ -8,7 +8,38 @@ import app.keyboards as kb
 import app.database.requests as rq
 import os
 from datetime import datetime, timedelta
+from aiogram.types import BotCommand
+import logging
+
 router = Router()
+
+COMMANDS_BY_ROLE = {
+    "Диспетчер": [
+       BotCommand(command="start", description="Запустить бота"),
+       BotCommand(command="help", description="Помощь"),
+       BotCommand(command="my_orders", description="Ваш лист заказов"),
+       BotCommand(command="orders", description="Лист всех заказов"),
+       BotCommand(command="new_order", description="Создание нового заказа"),
+    ],
+    "Водитель": [
+       BotCommand(command="start", description="Запустить бота"),
+       BotCommand(command="help", description="Помощь"),
+       BotCommand(command="my_orders", description="Ваш лист заказов"),
+       BotCommand(command="orders", description="Лист всех доступных заказов"),
+    ],
+    "Администратор": [
+       BotCommand(command="start", description="Запустить бота"),
+       BotCommand(command="help", description="Помощь"),
+       BotCommand(command="my_orders", description="Ваш лист заказов"),
+       BotCommand(command="orders", description="Лист всех заказов"),
+       BotCommand(command="new_order", description="Создание нового заказа"),
+    ],
+}
+
+async def set_user_commands(bot: Bot, tg_id: int):
+    role = await rq.get_user_role(tg_id=tg_id)
+    commands = COMMANDS_BY_ROLE.get(role)
+    await bot.set_my_commands(commands, scope={"type": "chat", "chat_id": tg_id})
 
 class Register(StatesGroup):
        role = State()
@@ -42,6 +73,15 @@ async def cmd_start(message:Message):
        else:
               await message.answer('Вы еще не зарегестрированны. Пожайлуста, введите /register')
 
+@router.message(Command('reload_comand'))
+async def register(message: Message, bot: Bot):
+    try:
+        await set_user_commands(bot, message.from_user.id)
+        await message.answer('Список команд успешно обнавлен')
+    except Exception as e:
+        logging.error(f"Ошибка обнавления команд: {e}")
+        await message.answer('Ошибка обнавления команд, поробуйте позже')
+
 @router.message(Command('register'))
 async def register(message: Message, state:FSMContext):
        if await rq.check_user(tg_id=message.from_user.id):
@@ -57,7 +97,7 @@ async def register_role(calback: CallbackQuery, state: FSMContext):
        await state.update_data(role = calbackRole)
        await state.set_state(Register.pas)
        await calback.answer()
-       await calback.message.answer('Введите выданный вам пароль')
+       await calback.message.answer('Введите выданный вам пароль', reply_markup=ReplyKeyboardRemove())
 
 @router.message(Register.pas)
 async def register_pas(message: Message, state:FSMContext):
@@ -80,7 +120,7 @@ async def register_pas(message: Message, state:FSMContext):
 @router.message(Command('cancel'), StateFilter('*'))
 async def cancelCom(message: Message, state:FSMContext):
        await state.clear()
-       await message.answer('Команда отменена')
+       await message.answer('Команда отменена', reply_markup=ReplyKeyboardRemove())
 
 @router.message(Register.fio)
 async def register_name (message: Message, state: FSMContext):
@@ -101,14 +141,15 @@ async def register_number(message: Message, state: FSMContext):
        await message.answer(f'Ваше имя:{data["fio"]}\nВаш номер: {data["number"]}', reply_markup=kb.regKey)
 
 @router.callback_query(Register.final, F.data == 'cmd_register_accept')
-async def new_register_accept(callback: CallbackQuery, state: FSMContext):
+async def new_register_accept(callback: CallbackQuery, state: FSMContext, bot: Bot):
        data = await state.get_data()
        await callback.answer()
-
+       
        await rq.reg_user(data=data, tg_id=data["tg_id"])
        await state.clear()
        await callback.answer()
        await callback.message.answer('Регистрация успешна')
+       await set_user_commands(bot, data["tg_id"])
 
 @router.callback_query(Register.final, F.data == 'cmd_register_cancel')
 async def new_register_accept(callback: CallbackQuery, state: FSMContext):
@@ -142,7 +183,7 @@ async def order_cargo_type(callback: CallbackQuery, state: FSMContext):
        cargo_key = callback.data.split("_")[1]
        await state.update_data(cargo_type_id = cargo_key)
        await state.set_state(Order.cargo_weight)
-       await callback.message.answer('Введите вес груза (кг)')
+       await callback.message.answer('Введите вес груза (кг)', reply_markup=ReplyKeyboardRemove())
 
 @router.message(Order.cargo_weight)
 async def order_cargo_weight(message: Message, state: FSMContext):
@@ -221,8 +262,7 @@ async def order_catalog(message: Message, state:FSMContext):
        else:
               await message.answer("Вы не можете просмотреть эту категорию. Выберете одну из предоставленных")
 
-       if len(orderKyes) != 0:
-              print(orderKyes)      
+       if len(orderKyes) != 0: 
               size = len(orderKyes)
               if size < 5:
                      await state.update_data(indexEnd = size)
@@ -258,7 +298,7 @@ async def order_take(callback: CallbackQuery, state: FSMContext):
        await callback.answer()
        try:
               if await rq.take_order(tg_id=data["tg_id"], order_id=int(orderId)):
-                     await callback.message.answer(f'Вы взяли заказ: {orderId}')
+                     await callback.message.answer(f'Вы взяли заказ: {orderId}', reply_markup=ReplyKeyboardRemove())
                      chat_id, mes = await rq.get_user_for_send(orderId=int(orderId), driver_id=data["tg_id"], action_text="Взял в работу")
                      await callback.message.bot.send_message(chat_id=chat_id, text=mes)
                      await state.clear()
@@ -308,7 +348,7 @@ async def complete_take(callback: CallbackQuery, state: FSMContext):
        await callback.answer()
        try:
               if await rq.complete_order(tg_id=data["tg_id"], order_id=int(orderId)):
-                     await callback.message.answer(f'Вы завершили заказ: {orderId}')
+                     await callback.message.answer(f'Вы завершили заказ: {orderId}', reply_markup=ReplyKeyboardRemove())
                      chat_id, mes = await rq.get_user_for_send(orderId=int(orderId), driver_id=data["tg_id"], action_text="Завершил")
                      await callback.message.bot.send_message(chat_id=chat_id, text=mes)
                      await state.clear()

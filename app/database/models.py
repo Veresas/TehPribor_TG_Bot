@@ -23,7 +23,6 @@ class User (Base):
     tgId: Mapped[int] = mapped_column(BigInteger, unique=True)
     phone: Mapped[str] = mapped_column(String(15))
     fio: Mapped[str] = mapped_column(String(100))
-    age: Mapped[int] = mapped_column()
     roleId: Mapped[int] = mapped_column(ForeignKey('roles.idRole'))
 
     disp: Mapped[list['Order']] = relationship(
