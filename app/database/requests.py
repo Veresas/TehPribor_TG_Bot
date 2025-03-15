@@ -105,16 +105,21 @@ async def get_orders(session, ordersKeys, start: int, end: int):
     
     formatted_orders = []
     for order in orders:
+        formatted_order = form_order(order=order)
+        formatted_orders.append(formatted_order)
+    return formatted_orders
+
+def form_order(order, status = None)-> str:
+    if status == None:
         status = statuses.get(order.orderStatusId)
-        formatted_order = (
+    formatted_order = (
             f"Заказ #{order.idOrder}:\n"
             f"Груз '{order.cargoName}'\n"
             f"Описание: '{order.cargoDescription}'\n"
             f"Время: {order.time.strftime('%Y-%m-%d %H:%M')}\n"
             f"Статус: {status}\n"
         )
-        formatted_orders.append(formatted_order)
-    return formatted_orders
+    return formatted_order
 
 @conection
 async def get_user_role(session, tg_id):
@@ -132,21 +137,44 @@ async def chek_next_record(session, end)-> bool:
     return order is not None
 
 @conection
-async def take_order(session, tg_id, order_id)-> None:
+async def take_order(session, tg_id, order_id)-> bool:
 
-    user = await session.scalar(select(tb.User).where(tb.User.tgId == tg_id))
-    new_data={
-        "driverId": user.idUser,
-        "orderStatusId": 2
-    }
+    if await check_order_status(order_id):
+        user = await session.scalar(select(tb.User).where(tb.User.tgId == tg_id))
+        new_data={
+            "driverId": user.idUser,
+            "orderStatusId": 2
+        }
 
-    stmt = (
-        update(tb.Order)
-        .where(tb.Order.idOrder == int(order_id))
-        .values(**new_data)
+        stmt = (
+            update(tb.Order)
+            .where(tb.Order.idOrder == order_id)
+            .values(**new_data)
+        )
+
+        await session.execute(stmt)
+        return True
+    else:
+        return False
+
+@conection
+async def check_order_status(session, order_id)-> bool:
+
+    order = await session.scalar(select(tb.Order).where(tb.Order.idOrder == order_id))
+
+    return order.orderStatusId == 1
+
+@conection
+async def get_user_for_send(session, orderId, driver_id):
+    order = await session.scalar(select(tb.Order).where(tb.Order.idOrder == orderId))
+    disp = await session.scalar(select(tb.User).where(tb.User.idUser == order.dispatcherId))
+    driver = await session.scalar(select(tb.User).where(tb.User.tgId == driver_id))
+    formatted_order = form_order(order=order, status="В работе")
+    fromatted_mes = (
+        f"Траспортировщик {driver.fio}\n"
+        f"Телефон: {driver.phone}\n"
+        f"Взял в работу:\n"
     )
-
-    await session.execute(stmt)
-
-
+    final_message = fromatted_mes + formatted_order
+    return disp.tgId, final_message
 
