@@ -1,8 +1,8 @@
 from app.database.models import async_session
 import app.database.models as tb
-from sqlalchemy import select
+from sqlalchemy import select, and_
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 def conection(func):
     async def inner(*args, **kwargs):
@@ -79,14 +79,30 @@ statuses = {
 }
 
 @conection
-async def get_orders(session, start: int, end: int):
-    limit = end - start + 1
-    offset = start - 1
-    stmt = select(tb.Order).order_by(tb.Order.time).limit(limit).offset(offset)
+async def get_order_keys(session, dateTime: datetime = None):
+    if(dateTime != None):
+        start_time = dateTime
+        end_time = dateTime + timedelta(days=1)
+        stmt = select(tb.Order).order_by(tb.Order.time).where(and_(tb.Order.time > start_time,
+                                                                    tb.Order.time < end_time))
+    else:
+        stmt = select(tb.Order).order_by(tb.Order.time)
+   
     result = await session.execute(stmt)
     orders = result.scalars().all()    
     
     order_keys = []
+    for order in orders:
+        order_keys.append(order.idOrder)
+    return order_keys
+
+@conection
+async def get_orders(session, ordersKeys, start: int, end: int):
+    actiual_order_list = ordersKeys[start:end]
+    stmt = select(tb.Order).order_by(tb.Order.time).where(tb.Order.idOrder.in_(actiual_order_list))
+    result = await session.execute(stmt)
+    orders = result.scalars().all()    
+    
     formatted_orders = []
     for order in orders:
         status = statuses.get(order.orderStatusId)
@@ -98,8 +114,7 @@ async def get_orders(session, start: int, end: int):
             f"Статус: {status}\n"
         )
         formatted_orders.append(formatted_order)
-        order_keys.append(order.idOrder)
-    return formatted_orders, order_keys
+    return formatted_orders
 
 @conection
 async def get_user_role(session, tg_id):

@@ -7,7 +7,7 @@ import app.validators as valid
 import app.keyboards as kb
 import app.database.requests as rq
 import os
-
+from datetime import datetime, timedelta
 router = Router()
 
 class Register(StatesGroup):
@@ -26,6 +26,10 @@ class Order(StatesGroup):
        goal_loc = State()
        time = State()
        final = State()
+
+class Order_list(StatesGroup):
+       start = State()
+       end = State()
 
 @router.message(CommandStart())
 async def cmd_start(message:Message):
@@ -192,11 +196,56 @@ async def new_order_accept(callback: CallbackQuery, state: FSMContext):
 
 #Просмотр каталога заказов
 @router.message(Command("orders"))
-async def order_catalog(message: Message):
-       orders, orderKyes = await rq.get_orders(start=1,end=5)
+async def order_catalog(message: Message, state:FSMContext):
+       await state.set_state(Order_list.start)
+       userRole = await rq.get_user_role(tg_id=message.from_user.id)
+       await state.update_data(indexStart = 0, indexEnd = 5, userRole = userRole)  
+       await message.answer("Выберете, на какой день вы хотите просмотреть лист заказов", reply_markup=kb.order_list_categori)
+
+@router.message(Order_list.start, F.text.lower().in_(["сегодня", "завтра", "все"]))
+async def order_catalog(message: Message, state:FSMContext):
+       if message.text.lower() == "сегодня":
+              orderKyes = await rq.get_order_keys(dateTime=datetime.today().date())
+       if message.text.lower() == "завтра":
+              orderKyes = await rq.get_order_keys(dateTime=datetime.today().date() + timedelta(days=1))
+       if message.text.lower() == "все":
+              orderKyes = await rq.get_order_keys()
+       if len(orderKyes) != 0:      
+              size = len(orderKyes)
+              if size < 5:
+                     await state.update_data(indexEnd = size)
+              await state.update_data(orderList = orderKyes)
+              data = await state.get_data()
+              orders = await rq.get_orders(ordersKeys=orderKyes, start=0,end=5)
+              mes = "\n".join(orders)
+              await message.answer(mes, reply_markup= await kb.order_select_keyboard(user_role=data["userRole"], order_keys=data["orderList"], start=data["indexStart"], end=data["indexEnd"] ) )
+       else:
+              await message.answer("Заказов нет")
+@router.callback_query(F.data ==('order_move_back'))
+async def order_move_back(callback: CallbackQuery, state: FSMContext):
+       await callback.answer()
+       data = await state.get_data()
+       await state.update_data(indexStart = (data["indexStart"]-5), indexEnd = (data["indexEnd"]-5))
+       orders = await rq.get_orders(ordersKeys= data["ordersKeys"], start=data["indexStart"]-5, end=data["indexEnd"]-5)
        mes = "\n".join(orders)
-       await message.answer(mes, reply_markup=kb.order_select_keyboard(tg_id=message.from_user.id, order_keys=orderKyes, start=1, end=5 ))
-"""    
+       await callback.message.edit_text(mes, reply_markup= await kb.order_select_keyboard(user_role=data["userRole"], order_keys=data["orderList"], start=data["indexStart"] -5, end=data["indexEnd"]-5) )
+
+@router.callback_query(F.data == ('order_move_forward'))
+async def order_move_back(callback: CallbackQuery, state: FSMContext):
+       await callback.answer()
+       data = await state.get_data()
+       await state.update_data(indexStart = (data["indexStart"]+5), indexEnd = (data["indexEnd"]+5))
+       orders = await rq.get_orders(ordersKeys= data["ordersKeys"], start=data["indexStart"]+5, end=data["indexEnd"]+5)
+       mes = "\n".join(orders)
+       await callback.message.edit_text(mes, reply_markup= await kb.order_select_keyboard(user_role=data["userRole"], order_keys=data["orderList"], start=data["indexStart"] +5, end=data["indexEnd"]+5) )
+
+@router.callback_query(F.data.startswith('take_order:'))
+async def order_move_back(callback: CallbackQuery, state: FSMContext):
+       orderId = callback.message.text.split(':')[1]
+       callback.message.answer(f'Вы взяли заказа {orderId}')
+"""
+
+
 @router.message(Command('help'))
 async def cmd_help(message: Message):
       await message.answer('Инструкция как пользоваться ботом')    
