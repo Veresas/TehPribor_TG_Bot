@@ -107,5 +107,14 @@ async def get_user_role(session, tg_id):
     role = await session.scalar(select(tb.Role).where(tb.Role.idRole == user.roleId))
     return role.roleName
 
+@conection
+async def chek_next_record(session, end)-> bool:
+    limit = 1
+    offset = end - 1
+    stmt = select(tb.Order).order_by(tb.Order.time).limit(limit).offset(offset)
+    result = await session.execute(stmt)
+    order = result.scalar()
+    return order is not None
+
 
 

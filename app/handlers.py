@@ -195,7 +195,7 @@ async def new_order_accept(callback: CallbackQuery, state: FSMContext):
 async def order_catalog(message: Message):
        orders, orderKyes = await rq.get_orders(start=1,end=5)
        mes = "\n".join(orders)
-       await message.answer(mes, )
+       await message.answer(mes, reply_markup=kb.order_select_keyboard(tg_id=message.from_user.id, order_keys=orderKyes, start=1, end=5 ))
 """    
 @router.message(Command('help'))
 async def cmd_help(message: Message):
