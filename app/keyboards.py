@@ -43,11 +43,11 @@ regKey = InlineKeyboardMarkup(inline_keyboard = [
      InlineKeyboardButton(text='Отменить', callback_data=f'cmd_register_cancel')]
 ])
 
-async def order_select_keyboard(user_role, order_keys, start, end, button_text):
+async def order_select_keyboard(user_role, order_keys, start, end, button_text, isHistoruPraviteCatalog = False):
     actiual_order_list = order_keys[start:end]
     size = len(order_keys)
     keyboard = InlineKeyboardBuilder()
-    if(user_role == "Водитель"):
+    if(user_role == "Водитель" and isHistoruPraviteCatalog):
         for kye in actiual_order_list:
             keyboard.add(InlineKeyboardButton(text=str(kye), callback_data=f'{button_text}:{kye}'))
     if start >= 5:

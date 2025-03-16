@@ -20,12 +20,14 @@ COMMANDS_BY_ROLE = {
        BotCommand(command="my_orders", description="Ваш лист заказов"),
        BotCommand(command="orders", description="Лист всех заказов"),
        BotCommand(command="new_order", description="Создание нового заказа"),
+       BotCommand(command="cancel", description="Отмена команды"),
     ],
     "Водитель": [
        BotCommand(command="start", description="Запустить бота"),
        BotCommand(command="help", description="Помощь"),
        BotCommand(command="my_orders", description="Ваш лист заказов"),
        BotCommand(command="orders", description="Лист всех доступных заказов"),
+       BotCommand(command="cancel", description="Отмена команды"),
     ],
     "Администратор": [
        BotCommand(command="start", description="Запустить бота"),
@@ -33,6 +35,7 @@ COMMANDS_BY_ROLE = {
        BotCommand(command="my_orders", description="Ваш лист заказов"),
        BotCommand(command="orders", description="Лист всех заказов"),
        BotCommand(command="new_order", description="Создание нового заказа"),
+       BotCommand(command="cancel", description="Отмена команды"),
     ],
 }
 
@@ -148,7 +151,7 @@ async def new_register_accept(callback: CallbackQuery, state: FSMContext, bot: B
        await rq.reg_user(data=data, tg_id=data["tg_id"])
        await state.clear()
        await callback.answer()
-       await callback.message.answer('Регистрация успешна')
+       await callback.message.answer('Регистрация успешна. Для получения инструкции по пользованию ботом выберите /help')
        await set_user_commands(bot, data["tg_id"])
 
 @router.callback_query(Register.final, F.data == 'cmd_register_cancel')
@@ -256,7 +259,7 @@ async def order_catalog(message: Message, state:FSMContext):
               orderKyes = await rq.get_order_keys(dateTime=datetime.today().date() + timedelta(days=1), tg_id=data["tg_id"])
        elif data["userRole"] != "Водитель":
               if message.text.lower() == "все" :
-                     orderKyes = await rq.get_order_keys()
+                     orderKyes = await rq.get_order_keys(tg_id=data["tg_id"])
               else: 
                      await message.answer("Вы не можете просмотреть эту категорию. Выберете одну из предоставленных")
        else:
@@ -280,7 +283,7 @@ async def order_move_back(callback: CallbackQuery, state: FSMContext):
        await state.update_data(indexStart = (data["indexStart"]-5), indexEnd = (data["indexEnd"]-5))
        orders = await rq.get_orders(ordersKeys= data["orderList"], start=data["indexStart"]-5, end=data["indexEnd"]-5)
        mes = "\n".join(orders)
-       await callback.message.edit_text(mes, reply_markup= await kb.order_select_keyboard(user_role=data["userRole"], order_keys=data["orderList"], start=data["indexStart"] -5, end=data["indexEnd"]-5, button_text=data["button_text"]))
+       await callback.message.edit_text(mes, reply_markup= await kb.order_select_keyboard(user_role=data["userRole"], order_keys=data["orderList"], start=data["indexStart"] -5, end=data["indexEnd"]-5, button_text=data["button_text"], isHistoruPraviteCatalog=data.get("isHistoruPraviteCatalog", False)))
 
 @router.callback_query(StateFilter(Order_list.start, Privat_order_list.start), F.data == ('order_move_forward'))
 async def order_move_back(callback: CallbackQuery, state: FSMContext):
@@ -289,7 +292,7 @@ async def order_move_back(callback: CallbackQuery, state: FSMContext):
        await state.update_data(indexStart = (data["indexStart"]+5), indexEnd = (data["indexEnd"]+5))
        orders = await rq.get_orders(ordersKeys= data["orderList"], start=data["indexStart"]+5, end=data["indexEnd"]+5)
        mes = "\n".join(orders)
-       await callback.message.edit_text(mes, reply_markup= await kb.order_select_keyboard(user_role=data["userRole"], order_keys=data["orderList"], start=data["indexStart"] +5, end=data["indexEnd"]+5, button_text=data["button_text"] ))
+       await callback.message.edit_text(mes, reply_markup= await kb.order_select_keyboard(user_role=data["userRole"], order_keys=data["orderList"], start=data["indexStart"] +5, end=data["indexEnd"]+5, button_text=data["button_text"], isHistoruPraviteCatalog=data.get("isHistoruPraviteCatalog", False) ))
 
 @router.callback_query(Order_list.start, F.data.startswith('take_order:'))
 async def order_take(callback: CallbackQuery, state: FSMContext):
@@ -322,6 +325,7 @@ async def private_order_catalog(message: Message, state:FSMContext):
               orderKyes = await rq.get_order_keys(tg_id=data["tg_id"], isActual=True, isPrivateCatalog=True)
        elif message.text.lower() == "история заказов":
               orderKyes = await rq.get_order_keys(tg_id=data["tg_id"], isPrivateCatalog=True)
+              await state.update_data(isHistoruPraviteCatalog = True)
        elif data["userRole"] != "Водитель":
               if message.text.lower() == "все" :
                      orderKyes = await rq.get_order_keys()
@@ -337,7 +341,7 @@ async def private_order_catalog(message: Message, state:FSMContext):
               await state.update_data(orderList = orderKyes)
               orders = await rq.get_orders(ordersKeys=orderKyes, start=0,end=5)
               mes = "\n".join(orders)
-              await message.answer(mes, reply_markup= await kb.order_select_keyboard(user_role=data["userRole"], order_keys=orderKyes, start=data["indexStart"], end=data["indexEnd"], button_text=data["button_text"] ) )
+              await message.answer(mes, reply_markup= await kb.order_select_keyboard(user_role=data["userRole"], order_keys=orderKyes, start=data["indexStart"], end=data["indexEnd"], button_text=data["button_text"], isHistoruPraviteCatalog=data.get("isHistoruPraviteCatalog", False) ) )
        else:
               await message.answer("Заказов нет")
 
@@ -356,12 +360,30 @@ async def complete_take(callback: CallbackQuery, state: FSMContext):
                      await callback.message.answer(f'Этот заказ уже завершен')
        except Exception as e:
               await callback.message.answer(f'При завершении заказа произошла ошибка. Попробуйте позже')
-"""
+
 
 
 @router.message(Command('help'))
 async def cmd_help(message: Message):
-      await message.answer('Инструкция как пользоваться ботом')    
+       user_role = rq.get_user_role(tg_id=message.from_user.id)
+       if(user_role == "Водитель"):
+              mes =(
+                     f'Инструкция как пользоваться ботом:\n\n'
+                     f'Для просмотра всех доступных к работе заказов выберите команду /orders. Вам нужно выбрать, на какой день просмотреть заказы, и появится список заказов, отсортированный по сроку взятия от самого раннего до самого позднего.'
+                     f'Под каталогом до 5 кнопок с номерами заказов. При нажатии на любую из них вы принимаете заказ. Стрелки внизу позволяют прокручивать каталог.\n\n'
+                     f'Для просмотра взятых в работу заказов выберите /my_orders. Для завершения заказа найдите его номер в каталоге активных заказов и нажмите соответствующую кнопку. Нажав на нее, заказ будет завершен.\n\n'
+                     f'Для выхода из каталога без взятия заказа или отмены другой длительной команды используйте /cancel.'              
+                     )
+       else:
+              mes = (
+                     f'Инструкция как пользоваться ботом:\n\n'
+                     f'Для создания заказа выберите команду /new_order. Вам нужно последовательно внести данные в требуемых форматах. Рекомендуется проверить корректность введенных данных и в случае ошибки отменить и заполнить форму заново.\n\n'
+                     f'Для просмотра всех заказов выберите команду /orders. Вам нужно выбрать, на какой день просмотреть заказы, и появится список заказов, отсортированный по сроку взятия от самого раннего до самого позднего.'
+                     f'Стрелки внизу позволяют прокручивать каталог.\n\n'
+                     f'Для просмотра созданных вами заказов выберите /my_orders. Здесь можно отслеживать их статус выполнения.\n\n'
+                     f'Для выхода из каталога или отмены другой длительной команды используйте /cancel.'
+              )
+       await message.answer(mes)    
 
 @router.message(F.text == 'Помощь')  
 async def bothelper(mesage:Message):
@@ -371,6 +393,3 @@ async def bothelper(mesage:Message):
 async def Do_Order(callback: CallbackQuery):
        await callback.answer('Вы выбрали первый пункт', show_alert=True)
        await callback.message.answer('Инструкция к заказу')
-
-
-"""    

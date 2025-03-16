@@ -34,7 +34,6 @@ async def reg_user(session, data, tg_id)-> None:
         tgId = tg_id,
         phone=data.get("number"),
         fio=data.get("fio"),
-        age=data.get("age"),
         roleId = role.idRole
     )
 
