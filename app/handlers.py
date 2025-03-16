@@ -141,7 +141,7 @@ async def register_number(message: Message, state: FSMContext):
        await state.update_data(number=message.contact.phone_number)
        await state.set_state(Register.final)
        data = await state.get_data()
-       await message.answer(f'Ваше имя:{data["fio"]}\nВаш номер: {data["number"]}', reply_markup=kb.regKey)
+       await message.answer(f'Ваше имя: {data["fio"]}\nВаш номер: {data["number"]}', reply_markup=kb.regKey)
 
 @router.callback_query(Register.final, F.data == 'cmd_register_accept')
 async def new_register_accept(callback: CallbackQuery, state: FSMContext, bot: Bot):
@@ -222,8 +222,8 @@ async def order_time(message: Message, state: FSMContext):
               data = await state.get_data() 
               type_name = await rq.get_cargo_type_name_by_id(data=int(data["cargo_type_id"]))
               await state.set_state(Order.final)
-              await message.answer(f'Заказ \nНазвание груза:{data["cargo_name"]} \nОписание груза{data["cargo_description"]} \nТип груза:{type_name} \nВес груза: {data["cargo_weight"]} \nЦех/корпус отправки: {data["depart_loc"]} '
-              f'\nЦех/корпус назначения: {data["goal_loc"]} \nВремя забора груза {data["time"]}', reply_markup = kb.orderKey)
+              await message.answer(f'Заказ \nНазвание груза: {data["cargo_name"]} \nОписание груза: {data["cargo_description"]} \nТип груза: {type_name} \nВес груза: {data["cargo_weight"]} \nЦех/корпус отправки: {data["depart_loc"]} '
+              f'\nЦех/корпус назначения: {data["goal_loc"]} \nВремя забора груза: {data["time"]}', reply_markup = kb.orderKey)
        else:
               await message.answer('Некорректные данные. Повторите попытку.')
 
@@ -297,12 +297,19 @@ async def order_move_back(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(Order_list.start, F.data.startswith('take_order:'))
 async def order_take(callback: CallbackQuery, state: FSMContext):
        orderId = callback.data.split(':')[1]
+       await state.update_data(orderId = orderId)
+       await callback.answer()
+       await callback.message.answer(f'Вы выбрали заказа №{orderId}', reply_markup= kb.publicCatalogKey)
+
+
+@router.callback_query(Order_list.start, F.data ==('accept_take_order'))
+async def order_take(callback: CallbackQuery, state: FSMContext):
        data = await state.get_data()
        await callback.answer()
        try:
-              if await rq.take_order(tg_id=data["tg_id"], order_id=int(orderId)):
-                     await callback.message.answer(f'Вы взяли заказ: {orderId}', reply_markup=ReplyKeyboardRemove())
-                     chat_id, mes = await rq.get_user_for_send(orderId=int(orderId), driver_id=data["tg_id"], action_text="Взял в работу")
+              if await rq.take_order(tg_id=data["tg_id"], order_id=int(data["orderId"])):
+                     await callback.message.answer(f'Вы взяли заказ: {data["orderId"]}', reply_markup=ReplyKeyboardRemove())
+                     chat_id, mes = await rq.get_user_for_send(orderId=int(data["orderId"]), driver_id=data["tg_id"], action_text="Взятие в работу")
                      await callback.message.bot.send_message(chat_id=chat_id, text=mes)
                      await state.clear()
               else:
@@ -348,18 +355,38 @@ async def private_order_catalog(message: Message, state:FSMContext):
 @router.callback_query(Privat_order_list.start, F.data.startswith('complete_order:'))
 async def complete_take(callback: CallbackQuery, state: FSMContext):
        orderId = callback.data.split(':')[1]
+       await state.update_data(orderId = orderId)
+       await callback.answer()
+       await callback.message.answer(f'Вы выбрали заказа №{orderId}', reply_markup= kb.privateCatalogKey)
+
+@router.callback_query(Privat_order_list.start, F.data == ('accept_complete_order'))
+async def acept_complete_take(callback: CallbackQuery, state: FSMContext):
        data = await state.get_data()
        await callback.answer()
        try:
-              if await rq.complete_order(tg_id=data["tg_id"], order_id=int(orderId)):
-                     await callback.message.answer(f'Вы завершили заказ: {orderId}', reply_markup=ReplyKeyboardRemove())
-                     chat_id, mes = await rq.get_user_for_send(orderId=int(orderId), driver_id=data["tg_id"], action_text="Завершил")
+              if await rq.complete_order(tg_id=data["tg_id"], order_id=int(data["orderId"])):
+                     await callback.message.answer(f'Вы завершили заказ: {data["orderId"]}', reply_markup=ReplyKeyboardRemove())
+                     chat_id, mes = await rq.get_user_for_send(orderId=int(data["orderId"]), driver_id=data["tg_id"], action_text="Завершение")
                      await callback.message.bot.send_message(chat_id=chat_id, text=mes)
                      await state.clear()
               else:
                      await callback.message.answer(f'Этот заказ уже завершен')
        except Exception as e:
               await callback.message.answer(f'При завершении заказа произошла ошибка. Попробуйте позже')
+
+@router.callback_query(Privat_order_list.start, F.data == ('take_off_complete_order'))
+async def take_off_complete_take(callback: CallbackQuery, state: FSMContext):
+       data = await state.get_data()
+       await callback.answer()
+       try:
+              await rq.take_off_complete_order(tg_id=data["tg_id"], order_id=int(data["orderId"]))
+              await callback.message.answer(f'Вы отказались от заказа: {data["orderId"]}', reply_markup=ReplyKeyboardRemove())
+              chat_id, mes = await rq.get_user_for_send(orderId=int(data["orderId"]), driver_id=data["tg_id"], action_text="Отмена выполнения")
+              await callback.message.bot.send_message(chat_id=chat_id, text=mes)
+              await state.clear()
+       except Exception as e:
+              await callback.message.answer(f'При отказе от заказа произошла ошибка. Попробуйте позже')
+
 
 
 

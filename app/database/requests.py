@@ -196,9 +196,9 @@ async def get_user_for_send(session, orderId, driver_id, action_text: str):
     driver = await session.scalar(select(tb.User).where(tb.User.tgId == driver_id))
     formatted_order = form_order(order=order, witoutStatus=True)
     fromatted_mes = (
+        f'{action_text}\n'
         f"Траспортировщик {driver.fio}\n"
-        f"Телефон: {driver.phone}\n"
-        f"{action_text}:\n"
+        f"Телефон: {driver.phone}\n"       
     )
     final_message = fromatted_mes + formatted_order
     return disp.tgId, final_message
@@ -222,3 +222,20 @@ async def complete_order(session, tg_id, order_id)-> bool:
         return True
     else:
         return False
+    
+@conection
+async def take_off_complete_order(session, tg_id, order_id)-> None:
+
+        user = await session.scalar(select(tb.User).where(tb.User.tgId == tg_id))
+        new_data={
+            "orderStatusId": 1,
+            "driverId": None
+        }
+
+        stmt = (
+            update(tb.Order)
+            .where(tb.Order.idOrder == order_id)
+            .values(**new_data)
+        )
+
+        await session.execute(stmt)

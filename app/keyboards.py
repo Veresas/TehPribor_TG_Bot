@@ -43,11 +43,20 @@ regKey = InlineKeyboardMarkup(inline_keyboard = [
      InlineKeyboardButton(text='Отменить', callback_data=f'cmd_register_cancel')]
 ])
 
+privateCatalogKey = InlineKeyboardMarkup(inline_keyboard = [
+    [InlineKeyboardButton(text='Выполнить', callback_data=f'accept_complete_order'),
+     InlineKeyboardButton(text='Отказаться', callback_data=f'take_off_complete_order')]
+])
+
+publicCatalogKey = InlineKeyboardMarkup(inline_keyboard = [
+    [InlineKeyboardButton(text='Подтвердить взятие заказа', callback_data=f'accept_take_order')]
+])
+
 async def order_select_keyboard(user_role, order_keys, start, end, button_text, isHistoruPraviteCatalog = False):
     actiual_order_list = order_keys[start:end]
     size = len(order_keys)
     keyboard = InlineKeyboardBuilder()
-    if(user_role == "Водитель" and isHistoruPraviteCatalog):
+    if(user_role == "Водитель" and not isHistoruPraviteCatalog):
         for kye in actiual_order_list:
             keyboard.add(InlineKeyboardButton(text=str(kye), callback_data=f'{button_text}:{kye}'))
     if start >= 5:
