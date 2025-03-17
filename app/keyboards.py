@@ -13,14 +13,6 @@ roles = InlineKeyboardMarkup(inline_keyboard= [
     [InlineKeyboardButton(text="Транспортировщик", callback_data='role_driver')]
 ])
 
-bothelper = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text='Как сделать заказ?', 
-                          callback_data='Do_Order')],
-    [InlineKeyboardButton(text='Как взять заказ в работу?', 
-                          callback_data='Take_Order')],
-    [InlineKeyboardButton(text='Как пользоваться экраном заказа?', 
-                          callback_data='Orders_screen')]])
-
 get_number = ReplyKeyboardMarkup(keyboard=
     [[KeyboardButton(text='Отправить номер', request_contact=True)]],
     resize_keyboard=True)
@@ -43,20 +35,57 @@ regKey = InlineKeyboardMarkup(inline_keyboard = [
      InlineKeyboardButton(text='Отменить', callback_data=f'cmd_register_cancel')]
 ])
 
+photoQuestKey = InlineKeyboardMarkup(inline_keyboard = [
+    [InlineKeyboardButton(text='Да', callback_data=f'cmd_photo_quest_accept'),
+     InlineKeyboardButton(text='Нет', callback_data=f'cmd_photo_quest_cancel')]
+])
+
+dateOrder = InlineKeyboardMarkup(inline_keyboard = [
+    [InlineKeyboardButton(text='Сегодня', callback_data=f'date_order:today'),
+     InlineKeyboardButton(text='Завтра', callback_data=f'date_order:tomorow')],
+])
+
+hourOrder = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text='7:00', callback_data='hour_date_order:07'),
+     InlineKeyboardButton(text='8:00', callback_data='hour_date_order:08')],
+    [InlineKeyboardButton(text='9:00', callback_data='hour_date_order:09'),
+     InlineKeyboardButton(text='10:00', callback_data='hour_date_order:10')],
+    [InlineKeyboardButton(text='11:00', callback_data='hour_date_order:11'),
+     InlineKeyboardButton(text='12:00', callback_data='hour_date_order:12')],
+    [InlineKeyboardButton(text='13:00', callback_data='hour_date_order:13'),
+     InlineKeyboardButton(text='14:00', callback_data='hour_date_order:14')],
+    [InlineKeyboardButton(text='15:00', callback_data='hour_date_order:15'),
+     InlineKeyboardButton(text='16:00', callback_data='hour_date_order:16')],
+    [InlineKeyboardButton(text='17:00', callback_data='hour_date_order:17'),
+     InlineKeyboardButton(text='18:00', callback_data='hour_date_order:18')]
+])
+
+minuteOrder = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text='00', callback_data='minute_date_order:00'),
+     InlineKeyboardButton(text='15', callback_data='minute_date_order:15')],
+    [InlineKeyboardButton(text='30', callback_data='minute_date_order:30'),
+     InlineKeyboardButton(text='45', callback_data='minute_date_order:45')]
+])
+
 privateCatalogKey = InlineKeyboardMarkup(inline_keyboard = [
     [InlineKeyboardButton(text='Выполнить', callback_data=f'accept_complete_order'),
-     InlineKeyboardButton(text='Отказаться', callback_data=f'take_off_complete_order')]
+     InlineKeyboardButton(text='Отказаться', callback_data=f'take_off_complete_order')],
+    [InlineKeyboardButton(text='Посмотреть фото', callback_data=f'wath_photo_complete_order')]
 ])
 
 publicCatalogKey = InlineKeyboardMarkup(inline_keyboard = [
     [InlineKeyboardButton(text='Подтвердить взятие заказа', callback_data=f'accept_take_order')]
 ])
 
-async def order_select_keyboard(user_role, order_keys, start, end, button_text, isHistoruPraviteCatalog = False):
-    actiual_order_list = order_keys[start:end]
+async def order_select_keyboard(data, isHistoruPraviteCatalog = False):
+    order_keys = data["orderList"]
+    start =data["indexStart"]
+    end=data["indexEnd"]
+    button_text = data["button_text"]
+    actiual_order_list =order_keys[start:end]
     size = len(order_keys)
     keyboard = InlineKeyboardBuilder()
-    if(user_role == "Водитель" and not isHistoruPraviteCatalog):
+    if(data["userRole"] == "Водитель" and not isHistoruPraviteCatalog):
         for kye in actiual_order_list:
             keyboard.add(InlineKeyboardButton(text=str(kye), callback_data=f'{button_text}:{kye}'))
     if start >= 5:

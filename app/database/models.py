@@ -51,8 +51,8 @@ class Order (Base):
     cargoDescription: Mapped[str] = mapped_column(Text())
     cargoTypeId: Mapped[int] = mapped_column(ForeignKey('cargoTypes.idCargoType'))
     cargo_weight: Mapped[float] = mapped_column(Float)
-    depart_loc: Mapped[int] = mapped_column()
-    goal_loc: Mapped[int] = mapped_column()
+    depart_loc: Mapped[str] = mapped_column(String(20))
+    goal_loc: Mapped[str] = mapped_column(String(20))
     time: Mapped[DateTime] = mapped_column(DateTime())
     orderStatusId: Mapped[int] = mapped_column(ForeignKey('orderStatuses.idOrderStatus'))
     dispatcherId: Mapped[int] = mapped_column(ForeignKey('users.idUser'))
@@ -60,6 +60,8 @@ class Order (Base):
         ForeignKey('users.idUser'),
         nullable=True
     )
+    photoId: Mapped[str|None] = mapped_column(String(max), nullable=True)
+
     cargoType: Mapped['CargoType'] = relationship(back_populates='orders')
     orderStatus: Mapped['OrderStatus'] = relationship(back_populates='orders')
     dispatcher: Mapped['User'] = relationship(
