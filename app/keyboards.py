@@ -8,6 +8,13 @@ main = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='📦 Экран за�
                             resize_keyboard=True,
                             input_field_placeholder='Выберите пункт меню...')
 
+choseOrderStatusList = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='Доступные'),
+                                      KeyboardButton(text='В работе')],
+                                      [KeyboardButton(text='Завершенные'),
+                                      KeyboardButton(text='Все')]], 
+                            resize_keyboard=True,
+                            input_field_placeholder='Выберите пункт меню...')
+
 roles = InlineKeyboardMarkup(inline_keyboard= [
     [InlineKeyboardButton(text="Диспетчер", callback_data='role_disp')],
     [InlineKeyboardButton(text="Транспортировщик", callback_data='role_driver')]

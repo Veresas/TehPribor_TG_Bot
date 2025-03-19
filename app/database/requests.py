@@ -82,7 +82,7 @@ statuses = {
 }
 
 @conection
-async def get_order_keys(session, dateTime: datetime = None, tg_id = None, isActual = False, isPrivateCatalog =False):
+async def get_order_keys(session, dateTime: datetime = None, tg_id = None, isActual = False, isPrivateCatalog =False, statusId:int = None):
 
     stmt = select(tb.Order).order_by(tb.Order.time)
     user = await session.scalar(select(tb.User).where(tb.User.tgId == tg_id))
@@ -108,10 +108,17 @@ async def get_order_keys(session, dateTime: datetime = None, tg_id = None, isAct
         stmt = stmt.where(role_condition)
 
         if isActual:
-            stmt = stmt.where(tb.Order.orderStatusId.in_([1,2]))
-            
+            if statusId in [1,2]:
+                stmt = stmt.where(tb.Order.orderStatusId == statusId)
+            else:
+                stmt = stmt.where(tb.Order.orderStatusId.in_([1,2]))
+            statusId = None
+    
+    if statusId is not None:
+        stmt = stmt.where(tb.Order.orderStatusId == statusId)        
     result = await session.execute(stmt)
     orders = result.scalars().all()    
+
     
     order_keys = []
     for order in orders:
@@ -128,6 +135,8 @@ async def get_orders(session, ordersKeys, start: int, end: int):
         .order_by(tb.Order.time)
         .where(tb.Order.idOrder.in_(actiual_order_list))
     )
+
+    
     result = await session.execute(stmt)
     orders = result.unique().scalars().all()    
     formatted_orders = []

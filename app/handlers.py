@@ -88,6 +88,7 @@ async def register(message: Message, bot: Bot):
 
 @router.message(Command('register'))
 async def register(message: Message, state:FSMContext):
+       await state.clear()
        if await rq.check_user(tg_id=message.from_user.id):
                await message.answer('Вы уже зарегистрированы')
        else:
@@ -164,6 +165,7 @@ async def new_register_accept(callback: CallbackQuery, state: FSMContext):
 #Создание нового заказа
 @router.message(Command('new_order'))
 async def order_creat_start(message: Message, state:FSMContext):
+       await state.clear()
        userRole = await rq.get_user_role(tg_id=message.from_user.id)
        if(userRole == "Диспетчер"):
               await state.set_state(Order.cargo_name)
@@ -304,18 +306,35 @@ async def new_order_accept(callback: CallbackQuery, state: FSMContext):
 #Просмотр каталога заказов
 @router.message(Command("orders"))
 async def order_catalog_choice(message: Message, state:FSMContext):
+       await state.clear()
        await state.set_state(Order_list.start)
        userRole = await rq.get_user_role(tg_id=message.from_user.id)
        await state.update_data(indexStart = 0, indexEnd = 5, userRole = userRole, tg_id=message.from_user.id, button_text="take_order")  
+       if(userRole != "Водитель"):
+              await message.answer("Выберите требуемый статус у заказа", reply_markup=kb.choseOrderStatusList)
+       else:
+              await message.answer("Выберите, на какой день вы хотите просмотреть список заказов", reply_markup= await kb.order_day(message.from_user.id))
+
+@router.message(Order_list.start, F.text.lower().in_(["доступен", "в работе", "завершен", "все"]))
+async def status_order_catalog(message: Message, state:FSMContext):
+       status = message.text
+       if status == "доступен":
+              await state.update_data(statusId = 1)
+       elif status == "в работе":
+              await state.update_data(statusId = 2)
+       elif status == "завершен":
+              await state.update_data(statusId = 3)
+       
        await message.answer("Выберите, на какой день вы хотите просмотреть список заказов", reply_markup= await kb.order_day(message.from_user.id))
+
 
 @router.message(Order_list.start, F.text.lower().in_(["сегодня", "завтра", "все"]))
 async def order_catalog(message: Message, state:FSMContext):
        data = await state.get_data()
        if message.text.lower() == "сегодня":
-              orderKyes = await rq.get_order_keys(dateTime=datetime.today().date(), tg_id=data["tg_id"])
+              orderKyes = await rq.get_order_keys(dateTime=datetime.today().date(), tg_id=data["tg_id"], statusId=data.get("statusId", None))
        elif message.text.lower() == "завтра":
-              orderKyes = await rq.get_order_keys(dateTime=datetime.today().date() + timedelta(days=1), tg_id=data["tg_id"])
+              orderKyes = await rq.get_order_keys(dateTime=datetime.today().date() + timedelta(days=1), tg_id=data["tg_id"], statusId=data.get("statusId", None))
        elif data["userRole"] != "Водитель":
               if message.text.lower() == "все" :
                      orderKyes = await rq.get_order_keys(tg_id=data["tg_id"])
@@ -384,19 +403,35 @@ async def order_take(callback: CallbackQuery, state: FSMContext):
 
 #Личные каталоги доставщиков/диспетчеров
 @router.message(Command("my_orders"))
-async def private_order_catalog_choice(message: Message, state:FSMContext):   
+async def private_order_catalog_choice(message: Message, state:FSMContext): 
+       await state.clear()  
        await state.set_state(Privat_order_list.start)
        userRole = await rq.get_user_role(tg_id=message.from_user.id)
-       await state.update_data(indexStart = 0, indexEnd = 5, userRole = userRole, tg_id=message.from_user.id, button_text="complete_order")  
+       await state.update_data(indexStart = 0, indexEnd = 5, userRole = userRole, tg_id=message.from_user.id, button_text="complete_order")
+       if userRole != "Водитель":
+              await message.answer("Выберите требуемый статус у заказа", reply_markup=kb.choseOrderStatusList)
+       else:
+              await message.answer("Выберите категорию списка заказов", reply_markup= kb.private_order_list_kb)
+
+@router.message(Privat_order_list.start, F.text.lower().in_(["доступен", "в работе", "завершен", "все"]))
+async def status_order_catalog(message: Message, state:FSMContext):
+       status = message.text
+       if status == "доступен":
+              await state.update_data(statusId = 1)
+       elif status == "в работе":
+              await state.update_data(statusId = 2)
+       elif status == "завершен":
+              await state.update_data(statusId = 3)
+       
        await message.answer("Выберите категорию списка заказов", reply_markup= kb.private_order_list_kb)
 
 @router.message(Privat_order_list.start, F.text.lower().in_(["активные заказы", "история заказов"]))
 async def private_order_catalog(message: Message, state:FSMContext):
        data = await state.get_data()
        if message.text.lower() == "активные заказы":
-              orderKyes = await rq.get_order_keys(tg_id=data["tg_id"], isActual=True, isPrivateCatalog=True)
+              orderKyes = await rq.get_order_keys(tg_id=data["tg_id"], isActual=True, isPrivateCatalog=True, statusId=data.get("statusId", None))
        elif message.text.lower() == "история заказов":
-              orderKyes = await rq.get_order_keys(tg_id=data["tg_id"], isPrivateCatalog=True)
+              orderKyes = await rq.get_order_keys(tg_id=data["tg_id"], isPrivateCatalog=True, statusId=data.get("statusId", None))
               await state.update_data(isHistoruPraviteCatalog = True)
        elif data["userRole"] != "Водитель":
               if message.text.lower() == "все" :
