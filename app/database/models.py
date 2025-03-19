@@ -61,6 +61,9 @@ class Order (Base):
         nullable=True
     )
     photoId: Mapped[str|None] = mapped_column(String(max), nullable=True)
+    pickup_time: Mapped[DateTime|None] = mapped_column(DateTime())
+    completion_time: Mapped[DateTime|None] = mapped_column(DateTime())
+    create_order_time: Mapped[DateTime] = mapped_column(DateTime())
 
     cargoType: Mapped['CargoType'] = relationship(back_populates='orders')
     orderStatus: Mapped['OrderStatus'] = relationship(back_populates='orders')

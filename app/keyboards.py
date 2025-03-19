@@ -8,9 +8,9 @@ main = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='📦 Экран за�
                             resize_keyboard=True,
                             input_field_placeholder='Выберите пункт меню...')
 
-choseOrderStatusList = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='Доступные'),
+choseOrderStatusList = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='Доступен'),
                                       KeyboardButton(text='В работе')],
-                                      [KeyboardButton(text='Завершенные'),
+                                      [KeyboardButton(text='Завершен'),
                                       KeyboardButton(text='Все')]], 
                             resize_keyboard=True,
                             input_field_placeholder='Выберите пункт меню...')
@@ -80,6 +80,8 @@ minuteOrder = InlineKeyboardMarkup(inline_keyboard=[
      InlineKeyboardButton(text='45', callback_data='minute_date_order:45')]
 ])
 
+
+
 privateCatalogKey = InlineKeyboardMarkup(inline_keyboard = [
     [InlineKeyboardButton(text='Выполнить', callback_data=f'accept_complete_order'),
      InlineKeyboardButton(text='Отказаться', callback_data=f'take_off_complete_order')],
@@ -90,7 +92,7 @@ publicCatalogKey = InlineKeyboardMarkup(inline_keyboard = [
     [InlineKeyboardButton(text='Подтвердить взятие заказа', callback_data=f'accept_take_order')]
 ])
 
-async def order_select_keyboard(data, isHistoruPraviteCatalog = False):
+async def order_select_keyboard(data, isHistoruPraviteCatalog = False, isPrivatCatalog = False):
     order_keys = data["orderList"]
     start =data["indexStart"]
     end=data["indexEnd"]
@@ -101,6 +103,12 @@ async def order_select_keyboard(data, isHistoruPraviteCatalog = False):
     if(data["userRole"] == "Водитель" and not isHistoruPraviteCatalog):
         for kye in actiual_order_list:
             keyboard.add(InlineKeyboardButton(text=str(kye), callback_data=f'{button_text}:{kye}'))
+    
+    if(data["userRole"] != "Водитель" and isPrivatCatalog):
+        for kye in actiual_order_list:
+            if await rq.check_order_status(order_id=kye,expectStatus=[1]):
+                keyboard.add(InlineKeyboardButton(text=str(kye), callback_data=f'cmd_edit_order:{kye}'))
+
     if start >= 5:
         keyboard.add(InlineKeyboardButton(text="<", callback_data=f'order_move_back'))
     if (size - end>= 1):
@@ -135,3 +143,55 @@ async def alarm_kb(orderId):
     keyboard = InlineKeyboardBuilder()
     keyboard.add(InlineKeyboardButton(text=str("Взять заказ"), callback_data=f'cmd_take_alarm_order:{orderId}'))
     return keyboard.as_markup()
+
+
+edit_order_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(
+                text="📦 Груз",
+                callback_data=f"edit_order_cargo"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="📝 Описание",
+                callback_data=f"edit_order_description"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="⚖️ Вес",
+                callback_data=f"edit_order_weight"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="📌 Тип",
+                callback_data=f"edit_order_type"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="📍 Отправление",
+                callback_data=f"edit_order_departure"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="🏁 Доставка",
+                callback_data=f"edit_order_delivery"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="🕒 Дата/время",
+                callback_data=f"edit_order_time"
+            )
+        ],
+                [
+            InlineKeyboardButton(
+                text="Завершить",
+                callback_data=f"edit_order_fin"
+            )
+        ],
+    ])

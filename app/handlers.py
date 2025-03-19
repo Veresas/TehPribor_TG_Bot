@@ -70,6 +70,17 @@ class Privat_order_list(StatesGroup):
        start = State()
        end = State()
 
+class EditOrder(StatesGroup):
+    select_field = State()
+    edit_cargo_name = State()
+    edit_cargo_description = State()
+    edit_cargo_weight = State()
+    edit_cargo_type = State()
+    edit_depart_loc = State()
+    edit_goal_loc = State()
+    edit_time = State()
+    confirm = State()
+
 @router.message(CommandStart())
 async def cmd_start(message:Message):
        if await rq.check_user(tg_id=message.from_user.id):
@@ -317,7 +328,7 @@ async def order_catalog_choice(message: Message, state:FSMContext):
 
 @router.message(Order_list.start, F.text.lower().in_(["доступен", "в работе", "завершен", "все"]))
 async def status_order_catalog(message: Message, state:FSMContext):
-       status = message.text
+       status = message.text.lower()
        if status == "доступен":
               await state.update_data(statusId = 1)
        elif status == "в работе":
@@ -351,6 +362,7 @@ async def order_catalog(message: Message, state:FSMContext):
               data["orderList"] = orderKyes
               orders = await rq.get_orders(ordersKeys=orderKyes, start=0,end=5)
               mes = "\n".join(orders)
+              data = await state.get_data()
               await message.answer(mes, reply_markup= await kb.order_select_keyboard(data=data), parse_mode="HTML")
        else:
               await message.answer("Заказов нет")
@@ -415,7 +427,7 @@ async def private_order_catalog_choice(message: Message, state:FSMContext):
 
 @router.message(Privat_order_list.start, F.text.lower().in_(["доступен", "в работе", "завершен", "все"]))
 async def status_order_catalog(message: Message, state:FSMContext):
-       status = message.text
+       status = message.text.lower()
        if status == "доступен":
               await state.update_data(statusId = 1)
        elif status == "в работе":
@@ -430,6 +442,7 @@ async def private_order_catalog(message: Message, state:FSMContext):
        data = await state.get_data()
        if message.text.lower() == "активные заказы":
               orderKyes = await rq.get_order_keys(tg_id=data["tg_id"], isActual=True, isPrivateCatalog=True, statusId=data.get("statusId", None))
+              await state.update_data(isPrivatCatalog = True)
        elif message.text.lower() == "история заказов":
               orderKyes = await rq.get_order_keys(tg_id=data["tg_id"], isPrivateCatalog=True, statusId=data.get("statusId", None))
               await state.update_data(isHistoruPraviteCatalog = True)
@@ -449,7 +462,8 @@ async def private_order_catalog(message: Message, state:FSMContext):
               data["orderList"] = orderKyes
               orders = await rq.get_orders(ordersKeys=orderKyes, start=0,end=5)
               mes = "\n".join(orders)
-              await message.answer(mes, reply_markup= await kb.order_select_keyboard(data, isHistoruPraviteCatalog=data.get("isHistoruPraviteCatalog", False) ), parse_mode="HTML" )
+              data = await state.get_data()
+              await message.answer(mes, reply_markup= await kb.order_select_keyboard(data, isHistoruPraviteCatalog=data.get("isHistoruPraviteCatalog", False), isPrivatCatalog=data.get("isPrivatCatalog", False) ), parse_mode="HTML" )
        else:
               await message.answer("Заказов нет")
 
@@ -499,6 +513,148 @@ async def wath_photo_complete_take(callback: CallbackQuery, state: FSMContext):
               await callback.message.answer(f'У этого заказа нет фото')
 
 
+@router.callback_query(Privat_order_list.start, F.data.startswith('cmd_edit_order:'))
+async def edit_order(callback: CallbackQuery, state: FSMContext):
+       orderId = callback.data.split(':')[1]
+       await state.clear()
+       await state.set_state(EditOrder.select_field)
+       order = await rq.get_order(orderId=int(orderId))
+       cargo_type = order.orderTypeName
+       mes = f'Редактирование заказа\n'
+       mes = mes + await rq.form_order(order=order, cargo_type=cargo_type)
+       await state.update_data(order_id=orderId, order = order)
+       await callback.answer()
+       await callback.message.answer(mes, reply_markup= kb.edit_order_keyboard , parse_mode="HTML")
+
+@router.callback_query(EditOrder.select_field, F.data.startswith("edit_order_"))
+async def select_field_to_edit(callback: CallbackQuery, state: FSMContext):
+    field = callback.data.split('_')[2]
+    await state.update_data(editing_field=field)
+    
+    match field:
+        case 'cargo':
+            await state.set_state(EditOrder.edit_cargo_name)
+            await callback.message.answer("Введите новое название груза:")
+
+        case 'description':
+            await state.set_state(EditOrder.edit_cargo_description)
+            await callback.message.answer("Введите новое описание груза. Если описание не требуется, введите 'Нет':")
+
+        case 'weight':
+            await state.set_state(EditOrder.edit_cargo_weight)
+            await callback.message.answer("Введите новый вес груза (кг). Если число дробное, используйте точку:")
+
+        case 'type':
+            await state.set_state(EditOrder.edit_cargo_type)
+            await callback.message.answer("Выберите новый тип груза:", reply_markup=await kb.cargo_types_keyboard())
+
+        case 'departure':
+            await state.set_state(EditOrder.edit_depart_loc)
+            await callback.message.answer("Введите новый номер цеха/корпуса отправления:")
+
+        case 'delivery':
+            await state.set_state(EditOrder.edit_goal_loc)
+            await callback.message.answer("Введите новый номер цеха/корпуса назначения:")
+
+        case 'time':
+            await state.set_state(EditOrder.edit_time)
+            await callback.message.answer("Выберите новую дату и время забора груза:", reply_markup=kb.dateOrder)
+
+        case 'fin':
+              try:
+                     data = await state.get_data()
+                     await rq.edit_order(data=data)
+                     await callback.answer("Заказ успешно обнавлен")
+                     await state.clear()
+              except Exception as e:
+                     await callback.answer("Ошибка при созранении изменений. Попробуйте позже")
+        case _:
+            await callback.answer("Неизвестное поле для редактирования.")
+            return
+        
+    await callback.answer()
+
+@router.message(EditOrder.edit_cargo_name)
+async def process_edit_cargo_name(message: Message, state: FSMContext):
+    new_cargo_name = message.text
+    await state.update_data(edit_cargo_name=new_cargo_name) 
+    await state.set_state(EditOrder.select_field) 
+    await message.answer("Название груза обновлено.")
+
+@router.message(EditOrder.edit_cargo_description)
+async def process_edit_cargo_description(message: Message, state: FSMContext):
+    new_cargo_description = message.text
+    await state.update_data(edit_cargo_description=new_cargo_description)  
+    await state.set_state(EditOrder.select_field) 
+    await message.answer("Описание груза обновлено.")
+
+@router.message(EditOrder.edit_cargo_weight)
+async def process_edit_cargo_weight(message: Message, state: FSMContext):
+    new_cargo_weight = message.text
+    if valid.valid_weight(new_cargo_weight):
+       await state.update_data(edit_cargo_weight=float(new_cargo_weight)) 
+       await state.set_state(EditOrder.select_field) 
+       await message.answer("Вес груза обновлен.")
+    else:
+       await message.answer('Некорректные данные. Повторите попытку. Если число дробное - введите его через точку') 
+
+@router.callback_query(EditOrder.edit_cargo_type, F.data.startswith("cargo_"))
+async def process_edit_cargo_type(callback: CallbackQuery, state: FSMContext):
+    cargo_type_id = callback.data.split("_")[1]
+    await state.update_data(edit_cargo_type_id=int(cargo_type_id))
+    await state.set_state(EditOrder.select_field)
+    await callback.message.answer("Тип груза обновлен.")
+    await callback.answer()
+
+@router.message(EditOrder.edit_depart_loc)
+async def process_edit_depart_loc(message: Message, state: FSMContext):
+       new_depart_loc = message.text
+
+       await state.update_data(edit_depart_loc=new_depart_loc)
+       await state.set_state(EditOrder.select_field)
+       await message.answer("Место отправления обновлено.")
+
+
+@router.message(EditOrder.edit_goal_loc)
+async def process_edit_goal_loc(message: Message, state: FSMContext):
+       new_goal_loc = message.text
+
+       await state.update_data(edit_goal_loc=new_goal_loc)  
+       await state.set_state(EditOrder.select_field)  
+       await message.answer("Место доставки обновлено.")
+
+
+@router.callback_query(EditOrder.edit_time, F.data.startswith("date_order"))
+async def process_edit_date(callback: CallbackQuery, state: FSMContext):
+    day = callback.data.split(':')[1]
+    today = datetime.today()
+    selected_date = today if day == "today" else today + timedelta(days=1)
+    formatted_date = selected_date.strftime('%d.%m.%Y')
+
+    await state.update_data(edit_day=formatted_date)  # Сохраняем новый день
+    await callback.message.edit_text('Выберите час:', reply_markup=kb.hourOrder)
+    await callback.answer()
+
+@router.callback_query(EditOrder.edit_time, F.data.startswith("hour_date_order"))
+async def process_edit_hour(callback: CallbackQuery, state: FSMContext):
+    hour = callback.data.split(':')[1]
+    await state.update_data(edit_hour=hour)  # Сохраняем новый час
+    await callback.message.edit_text('Выберите минуту:', reply_markup=kb.minuteOrder)
+    await callback.answer()
+
+@router.callback_query(EditOrder.edit_time, F.data.startswith("minute_date_order"))
+async def process_edit_time(callback: CallbackQuery, state: FSMContext):
+    minute = callback.data.split(':')[1]
+    data = await state.get_data()
+    hour = data["edit_hour"]
+    day = data["edit_day"]
+    new_time = f'{hour}:{minute} {day}'
+
+    await state.update_data(edit_time=new_time)  # Сохраняем новое время
+    await state.set_state(EditOrder.select_field)  # Возвращаемся к выбору поля
+    await callback.message.answer("Дата и время обновлены.")
+    await callback.answer()
+
 @router.message(Command('help'))
 async def cmd_help(message: Message):
     user_role = await rq.get_user_role(tg_id=message.from_user.id)
@@ -530,7 +686,12 @@ async def cmd_help(message: Message):
             "Ваши заказы:\n"
             "Используйте /my_orders для просмотра созданных вами заказов и их статуса выполнения.\n\n"
             "Отмена действий:\n"
-            "Для выхода из каталога или отмены команды используйте /cancel."
+            "Для выхода из каталога или отмены команды используйте /cancel.\n\n"
+            "Редактирование заказов:\n"
+            "Для редактирования заказов войдите в /my_orders -> доступен -> сегодня/завтра и нажмите на кнопку с номер заказа, который вы ходите отредактировать." 
+            "Появится описаие заказа с кнопками тем. Нажмите на нужный раздел заказа и введите данные."
+            "Если нужно изменить несколько разделов вернитесь к первоначальному описанию заказа и нажмите на нужный раздел"
+            "После внесения нужных изменений вернитесь к первоначальному описанию заказа и нажмите Завершить. Только после этого измения вступят в силу"
         )
 
     await message.answer(mes)

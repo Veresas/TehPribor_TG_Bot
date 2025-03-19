@@ -5,6 +5,7 @@ from sqlalchemy.orm import joinedload
 import logging
 from datetime import datetime, timedelta
 from aiogram.utils.markdown import hbold, hunderline, hpre
+from typing import List
 
 def conection(func):
     async def inner(*args, **kwargs):
@@ -68,7 +69,8 @@ async def add_new_order(session, data)-> None:
         time=datetime.strptime(data["time"], '%H:%M %d.%m.%Y'),
         orderStatusId = 1,
         dispatcherId = disp_id.idUser,
-        driverId=None
+        driverId=None,
+        create_order_time = datetime.now(),
     )
     if "photoId" in data:
         new_order.photoId = data["photoId"]
@@ -83,7 +85,6 @@ statuses = {
 
 @conection
 async def get_order_keys(session, dateTime: datetime = None, tg_id = None, isActual = False, isPrivateCatalog =False, statusId:int = None):
-
     stmt = select(tb.Order).order_by(tb.Order.time)
     user = await session.scalar(select(tb.User).where(tb.User.tgId == tg_id))
     if not isPrivateCatalog:
@@ -115,7 +116,9 @@ async def get_order_keys(session, dateTime: datetime = None, tg_id = None, isAct
             statusId = None
     
     if statusId is not None:
-        stmt = stmt.where(tb.Order.orderStatusId == statusId)        
+
+        stmt = stmt.where(tb.Order.orderStatusId == statusId)    
+
     result = await session.execute(stmt)
     orders = result.scalars().all()    
 
@@ -141,19 +144,45 @@ async def get_orders(session, ordersKeys, start: int, end: int):
     orders = result.unique().scalars().all()    
     formatted_orders = []
     for order in orders:
-        order_type = await session.scalar(select(tb.CargoType).where(tb.CargoType.idCargoType == order.cargoTypeId))
-        formatted_order = await form_order(order=order, order_type=order_type)
+        cargo_type = await session.scalar(select(tb.CargoType).where(tb.CargoType.idCargoType == order.cargoTypeId))
+        formatted_order = await form_order(order=order, cargo_type=cargo_type)
         formatted_orders.append(formatted_order)
     return formatted_orders
 
-async def form_order(order, order_type, status=None, witoutStatus=False) -> str:
+@conection
+async def get_order(session, orderId):
+    stmt = (
+        select(tb.Order)
+        .options(joinedload(tb.Order.cargoType))
+        .where(tb.Order.idOrder == orderId)
+    )
+    result = await session.execute(stmt)
+    order = result.scalar()
+
+    order.orderTypeName = order.cargoType.cargoTypeName
+
+    session.expunge(order)
+
+    return order
+
+@conection
+async def get_cargo_type_name(session, cargoTypeId):
+     cargoType = await session.scalar(select(tb.CargoType).where(tb.CargoType.idCargoType == cargoTypeId))
+
+     return cargoType.cargoTypeName
+
+async def form_order(order, cargo_type, status=None, witoutStatus=False) -> str:
+    if hasattr(cargo_type, 'cargoTypeName'):
+        cargo_type_name = cargo_type.cargoTypeName  # Используем атрибут
+    else:
+        cargo_type_name = str(cargo_type)
     # Основной блок
     formatted_order = [
         hbold(f"🚚 ЗАКАЗ #{order.idOrder}"),
         f"📦 Груз: {order.cargoName}",
         f"📝 Описание: {order.cargoDescription}",
         f"⚖️ Вес: {order.cargo_weight} кг",
-        f"📌 Тип: {order_type.cargoTypeName}",
+        f"📌 Тип: {cargo_type_name}",
         f"📍 Отправление: {order.depart_loc}",
         f"🏁 Доставка: {order.goal_loc}",
         f"🕒 Дата/время: {order.time.strftime('%d.%m.%Y %H:%M')}",
@@ -209,7 +238,8 @@ async def take_order(session, tg_id, order_id)-> bool:
         user = await session.scalar(select(tb.User).where(tb.User.tgId == tg_id))
         new_data={
             "driverId": user.idUser,
-            "orderStatusId": 2
+            "orderStatusId": 2,
+            "pickup_time":datetime.now(),
         }
 
         stmt = (
@@ -224,7 +254,7 @@ async def take_order(session, tg_id, order_id)-> bool:
         return False
 
 @conection
-async def check_order_status(session, order_id, expectStatus)-> bool:
+async def check_order_status(session, order_id, expectStatus: List[int])-> bool:
 
     order = await session.scalar(select(tb.Order).where(tb.Order.idOrder == order_id))
 
@@ -242,12 +272,12 @@ async def get_user_for_send(session, orderId, driver_id, action_text: str):
     order = await session.scalar(select(tb.Order).where(tb.Order.idOrder == orderId))
     disp = await session.scalar(select(tb.User).where(tb.User.idUser == order.dispatcherId))
     driver = await session.scalar(select(tb.User).where(tb.User.tgId == driver_id))
-    order_type = await session.scalar(select(tb.CargoType).where(tb.CargoType.idCargoType == order.cargoTypeId))
-    formatted_order = await form_order(order=order, order_type=order_type, witoutStatus=True)
+    cargo_type = await session.scalar(select(tb.CargoType).where(tb.CargoType.idCargoType == order.cargoTypeId))
+    formatted_order = await form_order(order=order, cargo_type=cargo_type, witoutStatus=True)
     fromatted_mes = (
         f'{action_text}\n'
         f"Траспортировщик {driver.fio}\n"
-        f"Телефон: {driver.phone}\n"       
+        f"Телефон: {driver.phone}\n\n"       
     )
     final_message = fromatted_mes + formatted_order
     return disp.tgId, final_message
@@ -262,7 +292,8 @@ async def complete_order(session, tg_id, order_id)-> bool:
     if await check_order_status(order_id=order_id, expectStatus= [2]):
         user = await session.scalar(select(tb.User).where(tb.User.tgId == tg_id))
         new_data={
-            "orderStatusId": 3
+            "orderStatusId": 3,
+            "completion_time":datetime.now(),
         }
 
         stmt = (
@@ -275,6 +306,28 @@ async def complete_order(session, tg_id, order_id)-> bool:
         return True
     else:
         return False
+
+@conection
+async def edit_order(session, data):
+    
+    updates = {
+        "cargoName": data.get("edit_cargo_name"),
+        "cargoDescription": data.get("edit_cargo_description"),
+        "cargo_weight": data.get("edit_cargo_weight"),
+        "cargoTypeId": data.get("edit_cargo_type_id"),
+        "depart_loc": data.get("edit_depart_loc"),
+        "goal_loc": data.get("edit_goal_loc"),
+    }
+    if data.get("edit_time") is not None:
+        updates["time"] = datetime.strptime(data.get("edit_time"), '%H:%M %d.%m.%Y')
+        
+    updates = {k: v for k, v in updates.items() if v is not None}
+    stmt = (
+        update(tb.Order)
+        .where(tb.Order.idOrder == int(data["order_id"]))
+        .values(**updates)
+    )
+    await session.execute(stmt)
     
 @conection
 async def take_off_complete_order(session, tg_id, order_id)-> None:
@@ -282,7 +335,8 @@ async def take_off_complete_order(session, tg_id, order_id)-> None:
         user = await session.scalar(select(tb.User).where(tb.User.tgId == tg_id))
         new_data={
             "orderStatusId": 1,
-            "driverId": None
+            "driverId": None,
+            "pickup_time": None,
         }
 
         stmt = (
