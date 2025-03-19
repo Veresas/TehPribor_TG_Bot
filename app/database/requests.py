@@ -4,6 +4,7 @@ from sqlalchemy import select, and_, update
 from sqlalchemy.orm import joinedload
 import logging
 from datetime import datetime, timedelta
+from aiogram.utils.markdown import hbold, hunderline, hpre
 
 def conection(func):
     async def inner(*args, **kwargs):
@@ -136,27 +137,38 @@ async def get_orders(session, ordersKeys, start: int, end: int):
         formatted_orders.append(formatted_order)
     return formatted_orders
 
-async def form_order(order, order_type, status = None, witoutStatus = False)-> str:
+async def form_order(order, order_type, status=None, witoutStatus=False) -> str:
+    # Основной блок
+    formatted_order = [
+        hbold(f"🚚 ЗАКАЗ #{order.idOrder}"),
+        f"📦 Груз: {order.cargoName}",
+        f"📝 Описание: {order.cargoDescription}",
+        f"⚖️ Вес: {order.cargo_weight} кг",
+        f"📌 Тип: {order_type.cargoTypeName}",
+        f"📍 Отправление: {order.depart_loc}",
+        f"🏁 Доставка: {order.goal_loc}",
+        f"🕒 Дата/время: {order.time.strftime('%d.%m.%Y %H:%M')}",
+    ]
 
-    formatted_order = (
-        f"Заказ #{order.idOrder}:\n"
-        f"Груз '{order.cargoName}'\n"
-        f"Описание: '{order.cargoDescription}'\n"
-        f"Тип: '{order_type.cargoTypeName}'\n"
-        f"Место получения: '{order.depart_loc}'\n"
-        f"Место доставки: '{order.goal_loc}'\n"
-        f"Время: {order.time.strftime('%Y-%m-%d %H:%M')}\n"
-    )
     if not witoutStatus:
-        if status == None:
-            status = statuses.get(order.orderStatusId)
-        formatted_order = formatted_order + f"Статус: {status}\n"
-        
-    if order.driverId != None:
-        if order.photoId != None:
-            formatted_order = formatted_order + f'Фото: есть\n'
-        formatted_order = formatted_order + f'Телефон диспетчера: {order.dispatcher.phone}\n' + f'Ответственный исполнитель: {order.executor.fio}\n'
-    return formatted_order
+        status = status or statuses.get(order.orderStatusId)
+        formatted_order.append(f"🔖 Статус: {hunderline(status)}")
+
+    if order.driverId is not None:
+        executors_block = [
+            "👤 Ответственные:",
+            f"📞 Диспетчер: {order.dispatcher.phone}",
+            f"🚜 Исполнитель: {order.executor.fio}",
+        ]
+        formatted_order.extend(executors_block)
+
+    if order.photoId is not None:
+        formatted_order.append("📸 Фото груза: приложено")
+            
+
+    formatted_order.append('\n━━━━━━━━━━━━━━━━━━━━━━━\n')
+
+    return "\n".join(formatted_order)
 
 @conection
 async def get_user(session, tg_id=None, id= None):
@@ -230,6 +242,10 @@ async def get_user_for_send(session, orderId, driver_id, action_text: str):
     )
     final_message = fromatted_mes + formatted_order
     return disp.tgId, final_message
+
+@conection
+async def get_drivers_for_alarm(session, order):
+    drivers = await session.scalars(select(tb.User).where(tb.User.roleId == 2))
 
 @conection
 async def complete_order(session, tg_id, order_id)-> bool:

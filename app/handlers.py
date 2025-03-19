@@ -200,7 +200,7 @@ async def order_cargo_weight(message: Message, state: FSMContext):
               await message.answer('Введите номер цеха/корпуса отправления')
        else:
               await message.answer('Некорректные данные. Повторите попытку. Если число дробное - введите его через точку')
-              
+       
 @router.message(Order.depart_loc)
 async def order_depart_loc(message: Message, state: FSMContext):
        await state.update_data(depart_loc = message.text)
@@ -232,6 +232,21 @@ async def get_order_photo(message: Message, state: FSMContext):
        await state.update_data(photoId = file_id)
        await state.set_state(Order.time)
        await message.answer('Выберите день', reply_markup= kb.dateOrder)
+
+"""
+       await message.answer('Это срочный заказ?', reply_markup= kb.alarmOrderKey)
+@router.message(Order.photo, F.data == "cmd_alarm_order_accept")
+async def accept_alarm_order(message: Message, state: FSMContext):
+       await state.update_data(alarm = True)
+       await state.set_state(Order.time)
+       await message.answer('Выберите день', reply_markup= kb.dateOrder)
+
+@router.message(Order.photo, F.data == "cmd_alarm_order_cancel")
+async def cancel_alarm_order(message: Message, state: FSMContext):
+       await state.update_data(alarm = False)
+       await state.set_state(Order.time)
+       await message.answer('Выберите день', reply_markup= kb.dateOrder)
+"""
 
 @router.callback_query(Order.time, F.data.startswith("date_order"))
 async def date_order(calback: CallbackQuery, state: FSMContext):
@@ -269,6 +284,7 @@ async def minute_date_order(calback: CallbackQuery, state: FSMContext):
        await state.set_state(Order.final)
        await calback.message.answer(f'Заказ \nНазвание груза: {data["cargo_name"]} \nОписание груза: {data["cargo_description"]} \nТип груза: {type_name} \nВес груза: {data["cargo_weight"]} \nЦех/корпус отправки: {data["depart_loc"]} '
               f'\nЦех/корпус назначения: {data["goal_loc"]} \nВремя забора груза: {data["time"]}', reply_markup = kb.orderKey)
+
 
 @router.callback_query(Order.final, F.data == 'cmd_order_accept')
 async def new_order_accept(callback: CallbackQuery, state: FSMContext):
@@ -316,7 +332,7 @@ async def order_catalog(message: Message, state:FSMContext):
               data["orderList"] = orderKyes
               orders = await rq.get_orders(ordersKeys=orderKyes, start=0,end=5)
               mes = "\n".join(orders)
-              await message.answer(mes, reply_markup= await kb.order_select_keyboard(data=data))
+              await message.answer(mes, reply_markup= await kb.order_select_keyboard(data=data), parse_mode="HTML")
        else:
               await message.answer("Заказов нет")
 
@@ -329,7 +345,8 @@ async def order_move_back(callback: CallbackQuery, state: FSMContext):
        mes = "\n".join(orders)
        data["indexStart"] = (data["indexStart"]-5)
        data["indexEnd"] = (data["indexEnd"]-5)
-       await callback.message.edit_text(mes, reply_markup= await kb.order_select_keyboard(data=data, isHistoruPraviteCatalog=data.get("isHistoruPraviteCatalog", False)))
+       print(f'Пользоавтель {data["tg_id"]} с ролью {data["userRole"]} наживает назад при списке {data["orderList"]} и индексами начала = {data["indexStart"]} и конца = {data["indexEnd"]}')
+       await callback.message.edit_text(mes, reply_markup= await kb.order_select_keyboard(data=data, isHistoruPraviteCatalog=data.get("isHistoruPraviteCatalog", False)), parse_mode="HTML")
 
 @router.callback_query(StateFilter(Order_list.start, Privat_order_list.start), F.data == ('order_move_forward'))
 async def order_move_back(callback: CallbackQuery, state: FSMContext):
@@ -340,7 +357,7 @@ async def order_move_back(callback: CallbackQuery, state: FSMContext):
        mes = "\n".join(orders)
        data["indexStart"] = (data["indexStart"]+5)
        data["indexEnd"] = (data["indexEnd"]+5)
-       await callback.message.edit_text(mes, reply_markup= await kb.order_select_keyboard(data=data, isHistoruPraviteCatalog=data.get("isHistoruPraviteCatalog", False) ))
+       await callback.message.edit_text(mes, reply_markup= await kb.order_select_keyboard(data=data, isHistoruPraviteCatalog=data.get("isHistoruPraviteCatalog", False) ), parse_mode="HTML")
 
 @router.callback_query(Order_list.start, F.data.startswith('take_order:'))
 async def order_take(callback: CallbackQuery, state: FSMContext):
@@ -358,7 +375,7 @@ async def order_take(callback: CallbackQuery, state: FSMContext):
               if await rq.take_order(tg_id=data["tg_id"], order_id=int(data["orderId"])):
                      await callback.message.answer(f'Вы взяли заказ: {data["orderId"]}', reply_markup=ReplyKeyboardRemove())
                      chat_id, mes = await rq.get_user_for_send(orderId=int(data["orderId"]), driver_id=data["tg_id"], action_text="Взятие в работу")
-                     await callback.message.bot.send_message(chat_id=chat_id, text=mes)
+                     await callback.message.bot.send_message(chat_id=chat_id, text=mes, parse_mode="HTML")
                      await state.clear()
               else:
                      await callback.message.answer(f'Этот заказ уже взят')
@@ -397,7 +414,7 @@ async def private_order_catalog(message: Message, state:FSMContext):
               data["orderList"] = orderKyes
               orders = await rq.get_orders(ordersKeys=orderKyes, start=0,end=5)
               mes = "\n".join(orders)
-              await message.answer(mes, reply_markup= await kb.order_select_keyboard(data, isHistoruPraviteCatalog=data.get("isHistoruPraviteCatalog", False) ) )
+              await message.answer(mes, reply_markup= await kb.order_select_keyboard(data, isHistoruPraviteCatalog=data.get("isHistoruPraviteCatalog", False) ), parse_mode="HTML" )
        else:
               await message.answer("Заказов нет")
 
@@ -416,7 +433,7 @@ async def acept_complete_take(callback: CallbackQuery, state: FSMContext):
               if await rq.complete_order(tg_id=data["tg_id"], order_id=int(data["orderId"])):
                      await callback.message.answer(f'Вы завершили заказ: {data["orderId"]}', reply_markup=ReplyKeyboardRemove())
                      chat_id, mes = await rq.get_user_for_send(orderId=int(data["orderId"]), driver_id=data["tg_id"], action_text="Завершение")
-                     await callback.message.bot.send_message(chat_id=chat_id, text=mes)
+                     await callback.message.bot.send_message(chat_id=chat_id, text=mes, parse_mode="HTML")
                      await state.clear()
               else:
                      await callback.message.answer(f'Этот заказ уже завершен')
@@ -431,7 +448,7 @@ async def take_off_complete_take(callback: CallbackQuery, state: FSMContext):
               await rq.take_off_complete_order(tg_id=data["tg_id"], order_id=int(data["orderId"]))
               await callback.message.answer(f'Вы отказались от заказа: {data["orderId"]}', reply_markup=ReplyKeyboardRemove())
               chat_id, mes = await rq.get_user_for_send(orderId=int(data["orderId"]), driver_id=data["tg_id"], action_text="Отмена выполнения")
-              await callback.message.bot.send_message(chat_id=chat_id, text=mes)
+              await callback.message.bot.send_message(chat_id=chat_id, text=mes, parse_mode="HTML")
               await state.clear()
        except Exception as e:
               await callback.message.answer(f'При отказе от заказа произошла ошибка. Попробуйте позже.')
@@ -449,22 +466,36 @@ async def wath_photo_complete_take(callback: CallbackQuery, state: FSMContext):
 
 @router.message(Command('help'))
 async def cmd_help(message: Message):
-       user_role = await rq.get_user_role(tg_id=message.from_user.id)
-       if(user_role == "Водитель"):
-              mes =(
-                     f'Инструкция как пользоваться ботом:\n\n'
-                     f'Для просмотра всех доступных к работе заказов выберите команду /orders. Вам нужно выбрать, на какой день просмотреть заказы, и появится список заказов, отсортированный по сроку взятия от самого раннего до самого позднего.'
-                     f'Под каталогом до 5 кнопок с номерами заказов. При нажатии на любую из них вы принимаете заказ. Стрелки внизу позволяют прокручивать каталог.\n\n'
-                     f'Для просмотра взятых в работу заказов выберите /my_orders. Для завершения заказа найдите его номер в каталоге активных заказов и нажмите соответствующую кнопку. Нажав на нее, заказ будет завершен.\n\n'
-                     f'Для выхода из каталога без взятия заказа или отмены другой длительной команды используйте /cancel.'              
-                     )
-       else:
-              mes = (
-                     f'Инструкция как пользоваться ботом:\n\n'
-                     f'Для создания заказа выберите команду /new_order. Вам нужно последовательно внести данные в требуемых форматах. Рекомендуется проверить корректность введенных данных и в случае ошибки отменить и заполнить форму заново.\n\n'
-                     f'Для просмотра всех заказов выберите команду /orders. Вам нужно выбрать, на какой день просмотреть заказы, и появится список заказов, отсортированный по сроку взятия от самого раннего до самого позднего.'
-                     f'Стрелки внизу позволяют прокручивать каталог.\n\n'
-                     f'Для просмотра созданных вами заказов выберите /my_orders. Здесь можно отслеживать их статус выполнения.\n\n'
-                     f'Для выхода из каталога или отмены другой длительной команды используйте /cancel.'
-              )
-       await message.answer(mes)
+    user_role = await rq.get_user_role(tg_id=message.from_user.id)
+
+    if user_role == "Водитель":
+        mes = (
+            "📌 Инструкция по использованию бота\n\n"
+            "Работа с заказами:\n"
+            "Для просмотра доступных заказов используйте команду /orders. Выберите дату, после чего отобразится список заказов, "
+            "отсортированный по сроку взятия (от самого раннего к позднему).\n"
+            "Под списком могут отображаться до 5 кнопок с номерами заказов. Нажатие на кнопку означает принятие заказа.\n"
+            "Используйте стрелки внизу для пролистывания каталога.\n\n"
+            "Ваши заказы:\n"
+            "Для просмотра текущих принятых заказов используйте /my_orders.\n"
+            "Чтобы завершить заказ, найдите его в списке активных и нажмите соответствующую кнопку.\n\n"
+            "Отмена действий:\n"
+            "Для выхода из каталога без принятия заказа или отмены команды используйте /cancel."
+        )
+    else:
+        mes = (
+            "📌 Инструкция по использованию бота\n\n"
+            "Создание заказов:\n"
+            "Для создания нового заказа используйте команду /new_order.\n"
+            "Следуйте инструкциям по вводу данных. Проверьте корректность информации перед подтверждением.\n"
+            "В случае ошибки можно отменить заполнение и начать заново.\n\n"
+            "Просмотр заказов:\n"
+            "Используйте /orders для просмотра всех заказов на выбранную дату. "
+            "Заказы отсортированы по сроку взятия (от раннего к позднему). Можно пролистывать каталог стрелками.\n\n"
+            "Ваши заказы:\n"
+            "Используйте /my_orders для просмотра созданных вами заказов и их статуса выполнения.\n\n"
+            "Отмена действий:\n"
+            "Для выхода из каталога или отмены команды используйте /cancel."
+        )
+
+    await message.answer(mes)

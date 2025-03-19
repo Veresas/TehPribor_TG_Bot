@@ -47,7 +47,7 @@ class Order (Base):
     __tablename__= 'orders'
 
     idOrder: Mapped[int] = mapped_column(primary_key=True)
-    cargoName: Mapped[str] = mapped_column(String(40))
+    cargoName: Mapped[str] = mapped_column(Text())
     cargoDescription: Mapped[str] = mapped_column(Text())
     cargoTypeId: Mapped[int] = mapped_column(ForeignKey('cargoTypes.idCargoType'))
     cargo_weight: Mapped[float] = mapped_column(Float)

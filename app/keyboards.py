@@ -3,7 +3,7 @@ from aiogram.types import (ReplyKeyboardMarkup, KeyboardButton,
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 import app.database.requests as rq
 
-main = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='Экран заказов'),
+main = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='📦 Экран заказов'),
                                       KeyboardButton(text='Помощь')]], 
                             resize_keyboard=True,
                             input_field_placeholder='Выберите пункт меню...')
@@ -40,24 +40,30 @@ photoQuestKey = InlineKeyboardMarkup(inline_keyboard = [
      InlineKeyboardButton(text='Нет', callback_data=f'cmd_photo_quest_cancel')]
 ])
 
+alarmOrderKey = InlineKeyboardMarkup(inline_keyboard = [
+    [InlineKeyboardButton(text='Да', callback_data=f'cmd_alarm_order_accept'),
+     InlineKeyboardButton(text='Нет', callback_data=f'cmd_alarm_order_cancel')]
+])
+
+
 dateOrder = InlineKeyboardMarkup(inline_keyboard = [
     [InlineKeyboardButton(text='Сегодня', callback_data=f'date_order:today'),
      InlineKeyboardButton(text='Завтра', callback_data=f'date_order:tomorow')],
 ])
 
 hourOrder = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text='7:00', callback_data='hour_date_order:07'),
-     InlineKeyboardButton(text='8:00', callback_data='hour_date_order:08')],
-    [InlineKeyboardButton(text='9:00', callback_data='hour_date_order:09'),
-     InlineKeyboardButton(text='10:00', callback_data='hour_date_order:10')],
-    [InlineKeyboardButton(text='11:00', callback_data='hour_date_order:11'),
-     InlineKeyboardButton(text='12:00', callback_data='hour_date_order:12')],
-    [InlineKeyboardButton(text='13:00', callback_data='hour_date_order:13'),
-     InlineKeyboardButton(text='14:00', callback_data='hour_date_order:14')],
-    [InlineKeyboardButton(text='15:00', callback_data='hour_date_order:15'),
-     InlineKeyboardButton(text='16:00', callback_data='hour_date_order:16')],
-    [InlineKeyboardButton(text='17:00', callback_data='hour_date_order:17'),
-     InlineKeyboardButton(text='18:00', callback_data='hour_date_order:18')]
+    [InlineKeyboardButton(text='7', callback_data='hour_date_order:07'),
+     InlineKeyboardButton(text='8', callback_data='hour_date_order:08')],
+    [InlineKeyboardButton(text='9', callback_data='hour_date_order:09'),
+     InlineKeyboardButton(text='10', callback_data='hour_date_order:10')],
+    [InlineKeyboardButton(text='11', callback_data='hour_date_order:11'),
+     InlineKeyboardButton(text='12', callback_data='hour_date_order:12')],
+    [InlineKeyboardButton(text='13', callback_data='hour_date_order:13'),
+     InlineKeyboardButton(text='14', callback_data='hour_date_order:14')],
+    [InlineKeyboardButton(text='15', callback_data='hour_date_order:15'),
+     InlineKeyboardButton(text='16', callback_data='hour_date_order:16')],
+    [InlineKeyboardButton(text='17', callback_data='hour_date_order:17'),
+     InlineKeyboardButton(text='18', callback_data='hour_date_order:18')]
 ])
 
 minuteOrder = InlineKeyboardMarkup(inline_keyboard=[
@@ -117,3 +123,8 @@ private_order_list_kb = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='Ак
                                       KeyboardButton(text='История заказов')]], 
                             resize_keyboard=True,
                             input_field_placeholder='Выберите пункт меню...')
+
+async def alarm_kb(orderId):
+    keyboard = InlineKeyboardBuilder()
+    keyboard.add(InlineKeyboardButton(text=str("Взять заказ"), callback_data=f'cmd_take_alarm_order:{orderId}'))
+    return keyboard.as_markup()
