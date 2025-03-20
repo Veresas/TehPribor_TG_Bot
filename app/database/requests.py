@@ -108,6 +108,8 @@ async def get_order_keys(session, dateTime: datetime = None, tg_id = None, isAct
                 
             case 2:  # Водитель
                 role_condition = tb.Order.driverId == user.idUser
+            case 3:
+                role_condition= tb.Order.dispatcherId == user.idUser
             case _:
                 raise ValueError(f"Роль {user.roleId} не поддерживается")
         

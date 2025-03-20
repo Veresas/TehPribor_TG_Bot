@@ -17,7 +17,8 @@ choseOrderStatusList = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='До�
 
 roles = InlineKeyboardMarkup(inline_keyboard= [
     [InlineKeyboardButton(text="Диспетчер", callback_data='role_disp')],
-    [InlineKeyboardButton(text="Транспортировщик", callback_data='role_driver')]
+    [InlineKeyboardButton(text="Транспортировщик", callback_data='role_driver')],
+    [InlineKeyboardButton(text="Администратор", callback_data='role_admin')]
 ])
 
 get_number = ReplyKeyboardMarkup(keyboard=
