@@ -63,10 +63,12 @@ class Order(StatesGroup):
        final = State()
 
 class Order_list(StatesGroup):
+       order_ststus = State()
        start = State()
        end = State()
 
 class Privat_order_list(StatesGroup):
+       order_ststus = State()
        start = State()
        end = State()
 
@@ -80,6 +82,11 @@ class EditOrder(StatesGroup):
     edit_goal_loc = State()
     edit_time = State()
     confirm = State()
+
+class ExportOrder(StatesGroup):
+       choise = State()
+       period_set = State()
+       start = State()
 
 @router.message(CommandStart())
 async def cmd_start(message:Message):
@@ -318,15 +325,17 @@ async def new_order_accept(callback: CallbackQuery, state: FSMContext):
 @router.message(Command("orders"))
 async def order_catalog_choice(message: Message, state:FSMContext):
        await state.clear()
-       await state.set_state(Order_list.start)
+
        userRole = await rq.get_user_role(tg_id=message.from_user.id)
        await state.update_data(indexStart = 0, indexEnd = 5, userRole = userRole, tg_id=message.from_user.id, button_text="take_order")  
        if(userRole != "Водитель"):
               await message.answer("Выберите требуемый статус у заказа", reply_markup=kb.choseOrderStatusList)
+              await state.set_state(Order_list.order_ststus)
        else:
               await message.answer("Выберите, на какой день вы хотите просмотреть список заказов", reply_markup= await kb.order_day(message.from_user.id))
+              await state.set_state(Order_list.start)
 
-@router.message(Order_list.start, F.text.lower().in_(["доступен", "в работе", "завершен", "все"]))
+@router.message(Order_list.order_ststus, F.text.lower().in_(["доступен", "в работе", "завершен", "все"]))
 async def status_order_catalog(message: Message, state:FSMContext):
        status = message.text.lower()
        if status == "доступен":
@@ -336,6 +345,7 @@ async def status_order_catalog(message: Message, state:FSMContext):
        elif status == "завершен":
               await state.update_data(statusId = 3)
        
+       await state.set_state(Order_list.start)
        await message.answer("Выберите, на какой день вы хотите просмотреть список заказов", reply_markup= await kb.order_day(message.from_user.id))
 
 
@@ -417,15 +427,17 @@ async def order_take(callback: CallbackQuery, state: FSMContext):
 @router.message(Command("my_orders"))
 async def private_order_catalog_choice(message: Message, state:FSMContext): 
        await state.clear()  
-       await state.set_state(Privat_order_list.start)
+
        userRole = await rq.get_user_role(tg_id=message.from_user.id)
        await state.update_data(indexStart = 0, indexEnd = 5, userRole = userRole, tg_id=message.from_user.id, button_text="complete_order")
        if userRole != "Водитель":
               await message.answer("Выберите требуемый статус у заказа", reply_markup=kb.choseOrderStatusList)
+              await state.set_state(Privat_order_list.order_ststus)
        else:
               await message.answer("Выберите категорию списка заказов", reply_markup= kb.private_order_list_kb)
+              await state.set_state(Privat_order_list.start)
 
-@router.message(Privat_order_list.start, F.text.lower().in_(["доступен", "в работе", "завершен", "все"]))
+@router.message(Privat_order_list.order_ststus, F.text.lower().in_(["доступен", "в работе", "завершен", "все"]))
 async def status_order_catalog(message: Message, state:FSMContext):
        status = message.text.lower()
        if status == "доступен":
@@ -435,6 +447,7 @@ async def status_order_catalog(message: Message, state:FSMContext):
        elif status == "завершен":
               await state.update_data(statusId = 3)
        
+       await state.set_state(Privat_order_list.start)      
        await message.answer("Выберите категорию списка заказов", reply_markup= kb.private_order_list_kb)
 
 @router.message(Privat_order_list.start, F.text.lower().in_(["активные заказы", "история заказов"]))
@@ -691,7 +704,62 @@ async def cmd_help(message: Message):
             "Для редактирования заказов войдите в /my_orders -> доступен -> сегодня/завтра и нажмите на кнопку с номер заказа, который вы ходите отредактировать." 
             "Появится описаие заказа с кнопками тем. Нажмите на нужный раздел заказа и введите данные."
             "Если нужно изменить несколько разделов вернитесь к первоначальному описанию заказа и нажмите на нужный раздел"
-            "После внесения нужных изменений вернитесь к первоначальному описанию заказа и нажмите Завершить. Только после этого измения вступят в силу"
+            "После внесения нужных изменений вернитесь к первоначальному описанию заказа и нажмите Сохранить изменения. Только после этого измения вступят в силу"
         )
 
     await message.answer(mes)
+
+
+@router.message(Command('export_orders'))
+async def cmd_export(message: Message, state: FSMContext):
+       await message.answer("За какой период выгрузить данные?", reply_markup=kb.exp_orders_kb)
+       await state.set_state(ExportOrder.choise)
+
+@router.message(ExportOrder.choise, F.text.lower().in_(["день", "неделя", "месяц", "год"]))
+async def status_order_catalog(message: Message, state:FSMContext):
+       per = message.text.lower()
+       match per:
+              case "день":
+                     date_from = datetime.now().replace(hour=0, minute=0, second=0)
+              case "неделя":
+                     date_from = datetime.now() - timedelta(days=7)
+                     print(date_from)
+              case "месяц":
+                     date_from = datetime.now() - timedelta(days=30)
+              case "год":
+                     date_from = datetime.now() - timedelta(days=365)
+              case "Свой период":
+                     await state.set_state(ExportOrder.period_set)
+                     await message.answer("Введите чило в формате ДД.ММ.ГГГГ-ДД.ММ.ГГГГ")
+                     return
+              case _:
+                     await message.answer("Не верная команда")
+                     return
+       
+       await make_export(message, state, date_from)
+       
+
+@router.message(ExportOrder.period_set)
+async def status_order_catalog(message: Message, state:FSMContext):
+       if valid.valid_exp_period (message.text):
+              date_from, date_to = message.text.split('-')
+              await state.get_state(ExportOrder.start)
+              await make_export(message, state, date_from, date_to)
+       else:
+              await message.answer("Некорректный формат введных данных. Повторите еще раз")
+
+
+async def make_export(message: Message, state:FSMContext, date_from, date_to = None):
+       if type(date_from) != datetime:
+              date_from = datetime.strptime(date_from, '%d.%m.%Y')
+
+       if date_to != None:
+              date_to = datetime.strptime(date_to, '%d.%m.%Y')
+       else:
+             date_to = datetime.today()
+       try:
+              file = await rq.export_orders_to_excel(date_from=date_from,date_to=date_to)
+              await message.answer_document(file, caption="Выгрузка заказов")
+       except Exception as e:
+             await message.answer(f"Произошла ошибка при экспорте. Попробуйте позже")
+             print("Ошибка экспорта: ", str(e))

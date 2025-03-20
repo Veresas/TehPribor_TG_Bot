@@ -190,8 +190,16 @@ edit_order_keyboard = InlineKeyboardMarkup(inline_keyboard=[
         ],
                 [
             InlineKeyboardButton(
-                text="Завершить",
+                text="Сохранить изменения",
                 callback_data=f"edit_order_fin"
             )
         ],
     ])
+
+exp_orders_kb = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='День'),
+                                      KeyboardButton(text='Неделя')],
+                                      [KeyboardButton(text='Месяц'),
+                                      KeyboardButton(text="Год")],
+                                      [KeyboardButton(text="Свой период")]], 
+                            resize_keyboard=True,
+                            input_field_placeholder='Выберите пункт меню...')

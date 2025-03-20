@@ -28,3 +28,7 @@ def valid_loc(num: str) -> bool:
         return False
 
     return 0 <= num < 956 
+
+def valid_exp_period(per: str)->bool:
+    pattern = r"^\d{2}\.\d{2}\.\d{4}-\d{2}\.\d{2}\.\d{4}$"
+    return bool(re.match(pattern,per))

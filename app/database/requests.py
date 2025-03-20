@@ -1,13 +1,18 @@
 from app.database.models import async_session
 import app.database.models as tb
 from sqlalchemy import select, and_, update
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 import logging
 from datetime import datetime, timedelta
 from aiogram.utils.markdown import hbold, hunderline, hpre
+from aiogram.types import BufferedInputFile
 from typing import List
+import pandas as pd
+from io import BytesIO
+from openpyxl.utils import get_column_letter
+import asyncio
 
-def conection(func):
+def connection(func):
     async def inner(*args, **kwargs):
         async with async_session() as session:
             try:
@@ -22,14 +27,14 @@ def conection(func):
                 await session.close()
     return inner
 
-@conection
+@connection
 async def check_user(session, tg_id)-> bool:
     user = await session.scalar(select(tb.User).where(tb.User.tgId == tg_id))
 
     return user is not None
 
 
-@conection
+@connection
 async def reg_user(session, data, tg_id)-> None:
     role = await session.scalar(select(tb.Role).where(tb.Role.roleName == data['role']))
 
@@ -42,13 +47,13 @@ async def reg_user(session, data, tg_id)-> None:
 
     session.add(new_user)
 
-@conection
+@connection
 async def get_cargo_types(session):
     result = await session.execute(select(tb.CargoType).order_by(tb.CargoType.cargoTypeName))
     cargo_types = result.scalars().all()
     return {cargo.idCargoType: cargo.cargoTypeName for cargo in cargo_types}
 
-@conection
+@connection
 async def get_cargo_type_name_by_id(session, data):
     cargo_type_name = await session.scalar(select(tb.CargoType).where(tb.CargoType.idCargoType == data))
 
@@ -56,7 +61,7 @@ async def get_cargo_type_name_by_id(session, data):
 
 
 
-@conection
+@connection
 async def add_new_order(session, data)-> None:
     disp_id = await session.scalar(select(tb.User).where(tb.User.tgId == data["tg_id"]))
     new_order = tb.Order(
@@ -83,7 +88,7 @@ statuses = {
     3: "Завершен"
 }
 
-@conection
+@connection
 async def get_order_keys(session, dateTime: datetime = None, tg_id = None, isActual = False, isPrivateCatalog =False, statusId:int = None):
     stmt = select(tb.Order).order_by(tb.Order.time)
     user = await session.scalar(select(tb.User).where(tb.User.tgId == tg_id))
@@ -128,7 +133,7 @@ async def get_order_keys(session, dateTime: datetime = None, tg_id = None, isAct
         order_keys.append(order.idOrder)
     return order_keys
 
-@conection
+@connection
 async def get_orders(session, ordersKeys, start: int, end: int):
     actiual_order_list = ordersKeys[start:end]
     stmt = (
@@ -149,7 +154,7 @@ async def get_orders(session, ordersKeys, start: int, end: int):
         formatted_orders.append(formatted_order)
     return formatted_orders
 
-@conection
+@connection
 async def get_order(session, orderId):
     stmt = (
         select(tb.Order)
@@ -165,7 +170,7 @@ async def get_order(session, orderId):
 
     return order
 
-@conection
+@connection
 async def get_cargo_type_name(session, cargoTypeId):
      cargoType = await session.scalar(select(tb.CargoType).where(tb.CargoType.idCargoType == cargoTypeId))
 
@@ -204,11 +209,11 @@ async def form_order(order, cargo_type, status=None, witoutStatus=False) -> str:
         formatted_order.append("📸 Фото груза: приложено")
             
 
-    formatted_order.append('\n━━━━━━━━━━━━━━━━━━━━━━━\n')
+    formatted_order.append('\n━━━━━━━━━━━━━━━━━━\n')
 
     return "\n".join(formatted_order)
 
-@conection
+@connection
 async def get_user(session, tg_id=None, id= None):
     if tg_id != None:
         user = await session.scalar(select(tb.User).where(tb.User.tgId == tg_id))
@@ -216,13 +221,13 @@ async def get_user(session, tg_id=None, id= None):
         user = await session.scalar(select(tb.User).where(tb.User.idUser == id))
     return user
 
-@conection
+@connection
 async def get_user_role(session, tg_id):
     user = await session.scalar(select(tb.User).where(tb.User.tgId == tg_id))
     role = await session.scalar(select(tb.Role).where(tb.Role.idRole == user.roleId))
     return role.roleName
 
-@conection
+@connection
 async def chek_next_record(session, end)-> bool:
     limit = 1
     offset = end - 1
@@ -231,7 +236,7 @@ async def chek_next_record(session, end)-> bool:
     order = result.scalar()
     return order is not None
 
-@conection
+@connection
 async def take_order(session, tg_id, order_id)-> bool:
 
     if await check_order_status(order_id=order_id, expectStatus = [1]):
@@ -253,21 +258,21 @@ async def take_order(session, tg_id, order_id)-> bool:
     else:
         return False
 
-@conection
+@connection
 async def check_order_status(session, order_id, expectStatus: List[int])-> bool:
 
     order = await session.scalar(select(tb.Order).where(tb.Order.idOrder == order_id))
 
     return order.orderStatusId in expectStatus
 
-@conection
+@connection
 async def get_order_photo(session, order_id):
 
     order = await session.scalar(select(tb.Order).where(tb.Order.idOrder == int(order_id)))
     
     return order.photoId
 
-@conection
+@connection
 async def get_user_for_send(session, orderId, driver_id, action_text: str):
     order = await session.scalar(select(tb.Order).where(tb.Order.idOrder == orderId))
     disp = await session.scalar(select(tb.User).where(tb.User.idUser == order.dispatcherId))
@@ -282,11 +287,11 @@ async def get_user_for_send(session, orderId, driver_id, action_text: str):
     final_message = fromatted_mes + formatted_order
     return disp.tgId, final_message
 
-@conection
+@connection
 async def get_drivers_for_alarm(session, order):
     drivers = await session.scalars(select(tb.User).where(tb.User.roleId == 2))
 
-@conection
+@connection
 async def complete_order(session, tg_id, order_id)-> bool:
 
     if await check_order_status(order_id=order_id, expectStatus= [2]):
@@ -307,7 +312,7 @@ async def complete_order(session, tg_id, order_id)-> bool:
     else:
         return False
 
-@conection
+@connection
 async def edit_order(session, data):
     
     updates = {
@@ -329,7 +334,7 @@ async def edit_order(session, data):
     )
     await session.execute(stmt)
     
-@conection
+@connection
 async def take_off_complete_order(session, tg_id, order_id)-> None:
 
         user = await session.scalar(select(tb.User).where(tb.User.tgId == tg_id))
@@ -346,3 +351,95 @@ async def take_off_complete_order(session, tg_id, order_id)-> None:
         )
 
         await session.execute(stmt)
+
+FIELDS = {
+    "ID заказа": "idOrder",
+    "Название груза": "cargoName",
+    "Описание груза": "cargoDescription",
+    "Тип груза": lambda order: order.cargoType.cargoTypeName if order.cargoType else "Не указан",
+    "Вес груза (кг)": "cargo_weight",
+    "Место отправления": "depart_loc",
+    "Место назначения": "goal_loc",
+    "Время заказа": lambda order: order.time.strftime("%Y-%m-%d %H:%M:%S"),
+    "Статус": lambda order: order.orderStatus.orderStatusName if order.orderStatus else "Не указан",
+    "Диспетчер": lambda order: order.dispatcher.fio if order.dispatcher else "Не указан",
+    "Водитель": lambda order: order.executor.fio if order.executor else "Не назначен",
+    "Время забора": lambda order: order.pickup_time.strftime("%Y-%m-%d %H:%M:%S") if order.pickup_time else "Не указано",
+    "Время завершения": lambda order: order.completion_time.strftime("%Y-%m-%d %H:%M:%S") if order.completion_time else "Не указано",
+    "Время создания": lambda order: order.create_order_time.strftime("%Y-%m-%d %H:%M:%S"),
+    "Время выполнения заказа": lambda order:( 
+        (str(order.completion_time - order.pickup_time)).split('.')[0]
+        if order.completion_time else None)
+}
+
+@connection 
+async def export_orders_to_excel(
+    session,
+    date_from: datetime = None,
+    date_to: datetime = datetime.today() + timedelta(days = 1),
+) -> BufferedInputFile:
+    
+    try:
+        # Формируем запрос с учетом фильтров
+        stmt = (
+            select(tb.Order)
+            .options(selectinload(tb.Order.cargoType))
+            .options(selectinload(tb.Order.executor))
+            .options(selectinload(tb.Order.dispatcher))
+            .options(selectinload(tb.Order.orderStatus))
+        )
+        print("День до: ",date_from)
+        if date_from:
+            print("фильтр добавлен")
+            stmt = stmt.where(tb.Order.create_order_time >= date_from)
+
+        stmt = stmt.where(tb.Order.create_order_time <= date_to)
+
+        # Потоковая обработка данных для экономии памяти
+        result = await session.stream(stmt)
+
+        async def process_data():
+            data = []
+            async for order in result.scalars():
+
+                order_data = {}
+                for display_name, field in FIELDS.items():
+                    if callable(field):
+                        order_data[display_name] = field(order)
+                    else:
+                        value = getattr(order, field)
+                        order_data[display_name] = value if value is not None else "Не указано"
+                data.append(order_data)
+            if not data:
+                raise ValueError("В базе данных нет заказов для указанных параметров")
+
+            df = pd.DataFrame(data)
+
+            excel_file = BytesIO()
+            with pd.ExcelWriter(excel_file, engine='openpyxl') as writer:
+                df.to_excel(writer, index=False, sheet_name='Orders')
+                worksheet = writer.sheets['Orders']
+
+                col_idx = list(FIELDS.keys()).index("Время выполнения заказа") + 1
+                for row in range(2, len(df) + 2):
+                    worksheet.cell(row=row, column=col_idx).number_format = '[h]:mm:ss'
+                for idx, column in enumerate(df.columns, 1):
+                    max_length = max(df[column].astype(str).map(len).max(), len(column)) + 2
+                    worksheet.column_dimensions[get_column_letter(idx)].width = max_length
+            excel_file.seek(0)
+            return excel_file.getvalue()
+
+        excel_data = await process_data()
+
+        filename = f"orders_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+
+        file_for_telegram = BufferedInputFile(
+            file=excel_data,
+            filename=filename
+        )
+
+        return file_for_telegram
+
+    except Exception as e:
+        logging.error(f"Ошибка при экспорте заказов в Excel: {e}")
+        raise
