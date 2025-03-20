@@ -85,12 +85,13 @@ async def add_new_order(session, data)-> None:
 statuses = {
     1: "Доступен",
     2: "В работе",
-    3: "Завершен"
+    3: "Завершен",
+    4: "Отменен"
 }
 
 @connection
 async def get_order_keys(session, dateTime: datetime = None, tg_id = None, isActual = False, isPrivateCatalog =False, statusId:int = None):
-    stmt = select(tb.Order).order_by(tb.Order.time)
+    stmt = select(tb.Order)
     user = await session.scalar(select(tb.User).where(tb.User.tgId == tg_id))
     if not isPrivateCatalog:
         if(dateTime != None):
@@ -100,6 +101,7 @@ async def get_order_keys(session, dateTime: datetime = None, tg_id = None, isAct
                                     tb.Order.time < end_time))
         if user.roleId == 2:
             stmt = stmt.where(tb.Order.orderStatusId == 1)
+        stmt = stmt.order_by(tb.Order.time)
 
     else:
         match user.roleId:
@@ -121,6 +123,7 @@ async def get_order_keys(session, dateTime: datetime = None, tg_id = None, isAct
             else:
                 stmt = stmt.where(tb.Order.orderStatusId.in_([1,2]))
             statusId = None
+        stmt = stmt.order_by(tb.Order.time.desc())
     
     if statusId is not None:
 
@@ -390,9 +393,8 @@ async def export_orders_to_excel(
             .options(selectinload(tb.Order.dispatcher))
             .options(selectinload(tb.Order.orderStatus))
         )
-        print("День до: ",date_from)
+
         if date_from:
-            print("фильтр добавлен")
             stmt = stmt.where(tb.Order.create_order_time >= date_from)
 
         stmt = stmt.where(tb.Order.create_order_time <= date_to)

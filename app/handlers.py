@@ -760,7 +760,6 @@ async def status_order_catalog(message: Message, state:FSMContext):
                      date_from = datetime.now().replace(hour=0, minute=0, second=0)
               case "неделя":
                      date_from = datetime.now() - timedelta(days=7)
-                     print(date_from)
               case "месяц":
                      date_from = datetime.now() - timedelta(days=30)
               case "год":
@@ -798,5 +797,8 @@ async def make_export(message: Message, state:FSMContext, date_from, date_to = N
               file = await rq.export_orders_to_excel(date_from=date_from,date_to=date_to)
               await message.answer_document(file, caption="Выгрузка заказов")
        except Exception as e:
-             await message.answer(f"Произошла ошибка при экспорте. Попробуйте позже")
-             print("Ошибка экспорта: ", str(e))
+              if str(e) == "В базе данных нет заказов для указанных параметров":             
+                     await message.answer(f"В заданный период данных нет")
+              else:
+                     await message.answer(f"Произошла ошибка при экспорте. Попробуйте позже")
+              print("Ошибка экспорта: ", str(e))
