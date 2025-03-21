@@ -6,11 +6,12 @@ import logging
 from datetime import datetime, timedelta
 from aiogram.utils.markdown import hbold, hunderline, hpre
 from aiogram.types import BufferedInputFile
+from aiogram import Bot
 from typing import List
 import pandas as pd
 from io import BytesIO
 from openpyxl.utils import get_column_letter
-import asyncio
+import app.keyboards as kb
 
 def connection(func):
     async def inner(*args, **kwargs):
@@ -62,7 +63,7 @@ async def get_cargo_type_name_by_id(session, data):
 
 
 @connection
-async def add_new_order(session, data)-> None:
+async def add_new_order(session, data):
     disp_id = await session.scalar(select(tb.User).where(tb.User.tgId == data["tg_id"]))
     new_order = tb.Order(
         cargoName=data["cargo_name"],
@@ -79,8 +80,22 @@ async def add_new_order(session, data)-> None:
     )
     if "photoId" in data:
         new_order.photoId = data["photoId"]
+    if "isUrgent" in data:
+        new_order.isUrgent = data["isUrgent"]
 
     session.add(new_order)
+    await session.flush()
+    await session.refresh(new_order)
+    return new_order.idOrder
+
+@connection
+async def alarm_for_drivers(session, orderId, bot: Bot):
+    drivers = await session.scalars(select(tb.User).where(tb.User.roleId == 2))
+    order = await session.scalar(select(tb.Order).options(joinedload(tb.Order.cargoType)).where(tb.Order.idOrder == orderId))
+    mes = f'Срочный заказа:\n\n' + await form_order(order=order, cargo_type=order.cargoType.cargoTypeName)
+    for driver in drivers:
+        print("Оповещение пользователя")
+        await bot.send_message(driver.tgId, mes, reply_markup=await kb.alarm_kb(orderId=orderId), parse_mode="HTML")
 
 statuses = {
     1: "Доступен",
@@ -123,6 +138,7 @@ async def get_order_keys(session, dateTime: datetime = None, tg_id = None, isAct
             else:
                 stmt = stmt.where(tb.Order.orderStatusId.in_([1,2]))
             statusId = None
+        
         stmt = stmt.order_by(tb.Order.time.desc())
     
     if statusId is not None:

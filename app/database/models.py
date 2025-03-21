@@ -1,4 +1,4 @@
-from sqlalchemy import BigInteger, String, ForeignKey, DateTime, Text, Float
+from sqlalchemy import BigInteger, String, ForeignKey, DateTime, Text, Float, Boolean
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.ext.asyncio import AsyncAttrs, async_sessionmaker, create_async_engine
 import os 
@@ -64,6 +64,7 @@ class Order (Base):
     pickup_time: Mapped[DateTime|None] = mapped_column(DateTime())
     completion_time: Mapped[DateTime|None] = mapped_column(DateTime())
     create_order_time: Mapped[DateTime] = mapped_column(DateTime())
+    isUrgent: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     cargoType: Mapped['CargoType'] = relationship(back_populates='orders')
     orderStatus: Mapped['OrderStatus'] = relationship(back_populates='orders')

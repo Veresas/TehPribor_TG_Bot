@@ -60,6 +60,7 @@ class Order(StatesGroup):
        depart_loc = State()
        goal_loc = State()
        photo = State()
+       alarm = State()
        time = State()
        final = State()
 
@@ -252,30 +253,31 @@ async def acept_order_photo(calback: CallbackQuery, state: FSMContext):
 @router.callback_query(Order.photo, F.data == ("cmd_photo_quest_cancel"))
 async def acept_order_photo(calback: CallbackQuery, state: FSMContext):
        await calback.answer()
-       await state.set_state(Order.time)
-       await calback.message.answer('Выберите день', reply_markup= kb.dateOrder)
+       await state.set_state(Order.alarm)
+       await calback.message.answer('Это срочный заказ?', reply_markup= kb.alarmOrderKey)
 
 @router.message(Order.photo, F.photo)
 async def get_order_photo(message: Message, state: FSMContext):
        file_id = message.photo[-1].file_id
        await state.update_data(photoId = file_id)
-       await state.set_state(Order.time)
-       await message.answer('Выберите день', reply_markup= kb.dateOrder)
-
-"""
+       await state.set_state(Order.alarm)
        await message.answer('Это срочный заказ?', reply_markup= kb.alarmOrderKey)
-@router.message(Order.photo, F.data == "cmd_alarm_order_accept")
-async def accept_alarm_order(message: Message, state: FSMContext):
-       await state.update_data(alarm = True)
-       await state.set_state(Order.time)
-       await message.answer('Выберите день', reply_markup= kb.dateOrder)
 
-@router.message(Order.photo, F.data == "cmd_alarm_order_cancel")
-async def cancel_alarm_order(message: Message, state: FSMContext):
-       await state.update_data(alarm = False)
+       
+@router.callback_query(Order.alarm, F.data == "cmd_alarm_order_accept")
+async def accept_alarm_order(calback: CallbackQuery, state: FSMContext):
+       print("Устанвка срочности заказа")
+       await calback.answer()
+       await state.update_data(isUrgent= True)
        await state.set_state(Order.time)
-       await message.answer('Выберите день', reply_markup= kb.dateOrder)
-"""
+       await calback.message.answer('Выберите день', reply_markup= kb.dateOrder)
+
+@router.callback_query(Order.alarm, F.data == "cmd_alarm_order_cancel")
+async def cancel_alarm_order(calback: CallbackQuery, state: FSMContext):
+       await calback.answer()
+       await state.update_data(isUrgent = False)
+       await state.set_state(Order.time)
+       await calback.message.answer('Выберите день', reply_markup= kb.dateOrder)
 
 @router.callback_query(Order.time, F.data.startswith("date_order"))
 async def date_order(calback: CallbackQuery, state: FSMContext):
@@ -318,10 +320,28 @@ async def minute_date_order(calback: CallbackQuery, state: FSMContext):
 @router.callback_query(Order.final, F.data == 'cmd_order_accept')
 async def new_order_accept(callback: CallbackQuery, state: FSMContext):
        data = await state.get_data() 
-       await rq.add_new_order(data=data)
+       order_id = await rq.add_new_order(data=data)
+       print("Получение ордер айди", {order_id})
+       if data["isUrgent"]:
+              print("Активация функции оповищения")
+              await rq.alarm_for_drivers(orderId=order_id, bot= callback.bot)
        await state.clear()
        await callback.answer()
        await callback.message.answer('Заказ успешно добавлен')
+
+@router.callback_query(F.data.startswith('cmd_take_alarm_order:'))
+async def alarm_order_take(callback: CallbackQuery):
+       orderId = int(callback.data.split(':')[1])
+       print("Получение заказа", orderId)
+       driverId = callback.from_user.id
+       print("ТГ ID водителя", driverId)
+       await callback.answer()
+       if await rq.take_order(tg_id=driverId, order_id=orderId):
+              await callback.message.answer(f'Вы взяли заказ: {orderId}', reply_markup=ReplyKeyboardRemove())
+              chat_id, mes = await rq.get_user_for_send(orderId=orderId, driver_id=driverId, action_text="Взятие в работу")
+              await callback.message.bot.send_message(chat_id=chat_id, text=mes, parse_mode="HTML")
+       else:
+              await callback.message.answer("Заказ уже взят")
 
 @router.callback_query(Order.final, F.data == 'cmd_order_cancel')
 async def new_order_accept(callback: CallbackQuery, state: FSMContext):
