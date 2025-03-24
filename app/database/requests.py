@@ -13,6 +13,7 @@ from io import BytesIO
 from openpyxl.utils import get_column_letter
 import app.keyboards as kb
 from sqlalchemy.ext.asyncio import AsyncSession
+from openpyxl.styles import Alignment
 
 def connection(func):
     async def inner(*args, **kwargs):
@@ -379,13 +380,13 @@ async def take_off_complete_order(session: AsyncSession, tg_id, order_id)-> None
 FIELDS = {
     "ID заказа": "idOrder",
     "Название груза": "cargoName",
-    "Описание груза": "cargoDescription",
+    #"Описание груза": "cargoDescription",
     "Тип груза": lambda order: order.cargoType.cargoTypeName if order.cargoType else "Не указан",
-    "Вес груза (кг)": "cargo_weight",
-    "Место отправления": "depart_loc",
-    "Место назначения": "goal_loc",
+    #"Вес груза (кг)": "cargo_weight",
+    #"Место отправления": "depart_loc",
+    #"Место назначения": "goal_loc",
     "Время заказа": lambda order: order.time.strftime("%Y-%m-%d %H:%M:%S"),
-    "Статус": lambda order: order.orderStatus.orderStatusName if order.orderStatus else "Не указан",
+    #"Статус": lambda order: order.orderStatus.orderStatusName if order.orderStatus else "Не указан",
     "Диспетчер": lambda order: order.dispatcher.fio if order.dispatcher else "Не указан",
     "Водитель": lambda order: order.executor.fio if order.executor else "Не назначен",
     "Время забора": lambda order: order.pickup_time.strftime("%Y-%m-%d %H:%M:%S") if order.pickup_time else "Не указано",
@@ -393,7 +394,7 @@ FIELDS = {
     "Время создания": lambda order: order.create_order_time.strftime("%Y-%m-%d %H:%M:%S"),
     "Время выполнения заказа": lambda order:( 
         (str(order.completion_time - order.pickup_time)).split('.')[0]
-        if order.completion_time else None),
+        if order.completion_time and order.pickup_time else None),
     "Перенесен": lambda order: "Да" if order.isPostponed == True else "Нет"
 }
 
@@ -417,7 +418,7 @@ async def export_orders_to_excel(
         if date_from:
             stmt = stmt.where(tb.Order.create_order_time >= date_from)
 
-        stmt = stmt.where(tb.Order.create_order_time <= date_to)
+        stmt = stmt.where(tb.Order.create_order_time <= date_to).order_by(tb.Order.create_order_time)
 
         # Потоковая обработка данных для экономии памяти
         result = await session.stream(stmt)
@@ -440,58 +441,69 @@ async def export_orders_to_excel(
             df = pd.DataFrame(data)
 
             date_column = "Время создания"
-            time_to_take_column = "Время взятия заказа"
-            time_to_complete_column = "Время выполнения заказа"
-            postponed= "Перенесен"
-
-            df["Среднее время взятия"] = pd.NA
-            df["Среднее время выполнения"] = pd.NA
-            df["Количество перенесенных"] = pd.NA
-
+            time_to_take_column = "Время забора"
+            time_to_complete_column = "Время завершения"
+            postponed_column = "Перенесен"
+            
+            df[time_to_take_column] = pd.to_datetime(df[time_to_take_column], errors='coerce')
+            df[time_to_complete_column] = pd.to_datetime(df[time_to_complete_column], errors='coerce')
+            df[date_column] = pd.to_datetime(df[date_column], errors='coerce')
+            
             df.sort_values(by=date_column, inplace=True)
 
             # Получаем уникальные даты
-            dates = df[date_column].unique()
+            dates = df[date_column].dt.date.unique()
 
             # Список для хранения DataFrame'ов каждого дня
             dfs = []
-
+            summary_rows = []  # Номера строк для объединения
+            current_row = 0
             # Обрабатываем каждый день
             for date in dates:
-                # Извлекаем данные за текущий день
-                day_df = df[df[date_column] == date].copy()
+
+                day_df = df[df[date_column].dt.date == date].copy()
 
                 # Вычисляем метрики для дня
-                avg_time_to_take = day_df[time_to_take_column].mean()
-                avg_time_to_complete = day_df[time_to_complete_column].mean()
-                num_transferred = day_df[postponed].sum()
-
+                avg_time_to_take = (day_df[time_to_take_column] - day_df[date_column]).mean()
+                avg_time_to_complete = (day_df[time_to_complete_column] - day_df[time_to_take_column]).mean()
+                num_transferred = (day_df[postponed_column] == "Да").sum()
+                
+                avg_time_to_take_str = str(avg_time_to_take).split(' ')[-1] if pd.notna(avg_time_to_take) else "Не указано"
+                avg_time_to_complete_str = str(avg_time_to_complete).split(' ')[-1] if pd.notna(avg_time_to_complete) else "Не указано"
                 # Создаем строку сводки для текущего дня
-                summary_row = pd.Series({
-                    date_column: date,
-                    "Среднее время взятия": avg_time_to_take,
-                    "Среднее время выполнения": avg_time_to_complete,
-                    "Количество перенесенных": num_transferred
-                })
-                summary_df = pd.DataFrame([summary_row])
+                summary_text = (
+                            f"Дата: {date.strftime('%d.%m.%Y')} "
+                            f"среднее время выполнения: {avg_time_to_complete_str.split('.')[0]} "
+                            f"среднее время взятия: {avg_time_to_take_str.split('.')[0]} "
+                            f"количество перенесенных: {num_transferred}"
+                        )
+                summary_df = pd.DataFrame([[summary_text] + [""] * (len(FIELDS) - 1)], columns=df.columns)
 
                 # Объединяем сводку и данные заказов за день
                 day_combined = pd.concat([summary_df, day_df], ignore_index=True)
+
+                summary_rows.append(current_row + 1)  # +1 для учета заголовка в Excel
+                current_row += len(day_combined)
+
                 dfs.append(day_combined)
 
             # Вычисляем общие метрики за весь период
-            overall_avg_time_to_take = df[time_to_take_column].mean()
-            overall_avg_time_to_complete = df[time_to_complete_column].mean()
-            overall_num_transferred = df[postponed].sum()
+            overall_avg_time_to_take = (df[time_to_take_column] - df[date_column]).mean()
+            overall_avg_time_to_complete = (df[time_to_complete_column] - df[time_to_take_column]).mean()
+            overall_num_transferred = (df[postponed_column] == "Да").sum()
 
-            # Создаем итоговую сводную строку
-            overall_summary_row = pd.Series({
-                date_column: "Итого",
-                "Среднее время взятия": overall_avg_time_to_take,
-                "Среднее время выполнения": overall_avg_time_to_complete,
-                "Количество перенесенных": overall_num_transferred
-            })
-            overall_summary_df = pd.DataFrame([overall_summary_row])
+            overall_avg_time_to_take_str = str(overall_avg_time_to_take).split(' ')[-1] if pd.notna(overall_avg_time_to_take) else "Не указано"
+            overall_avg_time_to_complete_str = str(overall_avg_time_to_complete).split(' ')[-1] if pd.notna(overall_avg_time_to_complete) else "Не указано"
+
+            # Форматируем итоговую строку
+            overall_summary_text = (
+                f"Итого "
+                f"среднее время выполнения: {overall_avg_time_to_complete_str.split('.')[0]} "
+                f"среднее время взятия: {overall_avg_time_to_take_str.split('.')[0]} "
+                f"количество перенесенных: {overall_num_transferred}"
+            )
+            overall_summary_df = pd.DataFrame([[overall_summary_text] + [""] * (len(FIELDS) - 1)], columns=df.columns)
+            summary_rows.append(current_row + 1)
             final_df = pd.concat(dfs + [overall_summary_df], ignore_index=True)
 
             excel_file = BytesIO()
@@ -499,22 +511,19 @@ async def export_orders_to_excel(
                 final_df.to_excel(writer, index=False, sheet_name='Orders')
                 worksheet = writer.sheets['Orders']
 
-                time_columns = [time_to_complete_column, time_to_take_column]
-                for col in time_columns:
-                    col_idx = final_df.columns.get_loc(col) + 1
-                    for row in range(2, len(final_df) + 2):
-                        worksheet.cell(row=row, column=col_idx).number_format = '[h]:mm:ss'
-                
-                summary_time_columns = ["Среднее время взятия", "Среднее время выполнения"]
-                for col in summary_time_columns:
-                    col_idx = final_df.columns.get_loc(col) + 1
-                    for row in range(2, len(final_df) + 2):
-                        worksheet.cell(row=row, column=col_idx).number_format = '[h]:mm:ss'
+                num_columns = len(final_df.columns)
+                for row_idx in summary_rows:
+                    worksheet.merge_cells(start_row=row_idx + 1, start_column=1, end_row=row_idx + 1, end_column=num_columns)
+                    worksheet.cell(row=row_idx + 1, column=1).alignment = Alignment(horizontal='left')
+
+                # Форматируем колонки с временем
+
 
                 col_idx = list(FIELDS.keys()).index("Время выполнения заказа") + 1
                 for row in range(2, len(final_df) + 2):
                     worksheet.cell(row=row, column=col_idx).number_format = '[h]:mm:ss'
-                    
+
+                # Настраиваем ширину колонок
                 for idx, column in enumerate(final_df.columns, 1):
                     max_length = max(final_df[column].astype(str).map(len).max(), len(column)) + 2
                     worksheet.column_dimensions[get_column_letter(idx)].width = max_length
@@ -539,10 +548,12 @@ async def export_orders_to_excel(
 
 @connection
 async def notificationDrivers(session: AsyncSession,  bot: Bot):
-    target_time = datetime.now + timedelta(minutes=15)
+    print("Начло оповещния водителей")
+    target_time = datetime.now() + timedelta(minutes=1)
     stmt = (
         select(tb.Order)
         .options(joinedload(tb.Order.executor))
+        .options(joinedload(tb.Order.dispatcher))
         .options(joinedload(tb.Order.cargoType))
         .where(and_(
             tb.Order.orderStatusId == 2,
@@ -551,10 +562,12 @@ async def notificationDrivers(session: AsyncSession,  bot: Bot):
         ))
     )
 
-    orders = await session.stream(stmt)
-    async for order in orders:
+    result = await session.execute(stmt)
+    orders = result.scalars().all()
+    for order in orders:
         mes = "Напоминание:\n\n" + await form_order(order=order, cargo_type=order.cargoType.cargoTypeName)
         try:
+
             await bot.send_message(order.executor.tgId, mes)
         except Exception as e:
             logging.error(f"Ошибка отправки сообщения для заказа {order.idOrder}: {e}")
@@ -563,19 +576,22 @@ async def notificationDrivers(session: AsyncSession,  bot: Bot):
 async def dayEnd(session: AsyncSession, bot: Bot):
     stmt = (
         select(tb.Order)
+        .options(joinedload(tb.Order.executor))
         .options(joinedload(tb.Order.dispatcher))
         .options(joinedload(tb.Order.cargoType))
         .where(and_(
             tb.Order.orderStatusId == 1,
-            tb.Order.time == datetime.today()
+            tb.Order.time >= datetime.today().replace(hour=0, minute=0, second=0, microsecond=0)
         ))
     )
 
     orders = (await session.execute(stmt)).scalars().all()
-
+    print("формируем список заказов")
     for order in orders:
+        print("Первый заказ: ", order)
         mes = "Перенос заказа:\n\n" + await form_order(order=order, cargo_type=order.cargoType.cargoTypeName)
         try:
-            await bot.send_message(order.dispatcher.tgId, mes, reply_markup= await kb.dayEndKb(orderId=order.idOrder))
+            print("Отправка сообщение диспетчеру: ", order.dispatcher.tgId)
+            await bot.send_message(order.dispatcher.tgId, mes, reply_markup= await kb.dayEndKb(orderId=order.idOrder), parse_mode='HTML')
         except Exception as e:
             logging.error(f"Ошибка отправки сообщения для заказа {order.idOrder}: {e}")
