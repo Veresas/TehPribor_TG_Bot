@@ -12,6 +12,7 @@ import pandas as pd
 from io import BytesIO
 from openpyxl.utils import get_column_letter
 import app.keyboards as kb
+from sqlalchemy.ext.asyncio import AsyncSession
 
 def connection(func):
     async def inner(*args, **kwargs):
@@ -29,14 +30,14 @@ def connection(func):
     return inner
 
 @connection
-async def check_user(session, tg_id)-> bool:
+async def check_user(session: AsyncSession, tg_id)-> bool:
     user = await session.scalar(select(tb.User).where(tb.User.tgId == tg_id))
 
     return user is not None
 
 
 @connection
-async def reg_user(session, data, tg_id)-> None:
+async def reg_user(session: AsyncSession, data, tg_id)-> None:
     role = await session.scalar(select(tb.Role).where(tb.Role.roleName == data['role']))
 
     new_user = tb.User(
@@ -49,13 +50,13 @@ async def reg_user(session, data, tg_id)-> None:
     session.add(new_user)
 
 @connection
-async def get_cargo_types(session):
+async def get_cargo_types(session: AsyncSession):
     result = await session.execute(select(tb.CargoType).order_by(tb.CargoType.cargoTypeName))
     cargo_types = result.scalars().all()
     return {cargo.idCargoType: cargo.cargoTypeName for cargo in cargo_types}
 
 @connection
-async def get_cargo_type_name_by_id(session, data):
+async def get_cargo_type_name_by_id(session: AsyncSession, data):
     cargo_type_name = await session.scalar(select(tb.CargoType).where(tb.CargoType.idCargoType == data))
 
     return cargo_type_name.cargoTypeName
@@ -63,7 +64,7 @@ async def get_cargo_type_name_by_id(session, data):
 
 
 @connection
-async def add_new_order(session, data):
+async def add_new_order(session: AsyncSession, data):
     disp_id = await session.scalar(select(tb.User).where(tb.User.tgId == data["tg_id"]))
     new_order = tb.Order(
         cargoName=data["cargo_name"],
@@ -89,7 +90,7 @@ async def add_new_order(session, data):
     return new_order.idOrder
 
 @connection
-async def alarm_for_drivers(session, orderId, bot: Bot):
+async def alarm_for_drivers(session: AsyncSession, orderId, bot: Bot):
     drivers = await session.scalars(select(tb.User).where(tb.User.roleId == 2))
     order = await session.scalar(select(tb.Order).options(joinedload(tb.Order.cargoType)).where(tb.Order.idOrder == orderId))
     mes = f'Срочный заказа:\n\n' + await form_order(order=order, cargo_type=order.cargoType.cargoTypeName)
@@ -105,7 +106,7 @@ statuses = {
 }
 
 @connection
-async def get_order_keys(session, dateTime: datetime = None, tg_id = None, isActual = False, isPrivateCatalog =False, statusId:int = None):
+async def get_order_keys(session: AsyncSession, dateTime: datetime = None, tg_id = None, isActual = False, isPrivateCatalog =False, statusId:int = None):
     stmt = select(tb.Order)
     user = await session.scalar(select(tb.User).where(tb.User.tgId == tg_id))
     if not isPrivateCatalog:
@@ -155,7 +156,7 @@ async def get_order_keys(session, dateTime: datetime = None, tg_id = None, isAct
     return order_keys
 
 @connection
-async def get_orders(session, ordersKeys, start: int, end: int):
+async def get_orders(session: AsyncSession, ordersKeys, start: int, end: int):
     actiual_order_list = ordersKeys[start:end]
     stmt = (
         select(tb.Order)
@@ -176,7 +177,7 @@ async def get_orders(session, ordersKeys, start: int, end: int):
     return formatted_orders
 
 @connection
-async def get_order(session, orderId):
+async def get_order(session: AsyncSession, orderId):
     stmt = (
         select(tb.Order)
         .options(joinedload(tb.Order.cargoType))
@@ -192,7 +193,7 @@ async def get_order(session, orderId):
     return order
 
 @connection
-async def get_cargo_type_name(session, cargoTypeId):
+async def get_cargo_type_name(session: AsyncSession, cargoTypeId):
      cargoType = await session.scalar(select(tb.CargoType).where(tb.CargoType.idCargoType == cargoTypeId))
 
      return cargoType.cargoTypeName
@@ -235,7 +236,7 @@ async def form_order(order, cargo_type, status=None, witoutStatus=False) -> str:
     return "\n".join(formatted_order)
 
 @connection
-async def get_user(session, tg_id=None, id= None):
+async def get_user(session: AsyncSession, tg_id=None, id= None):
     if tg_id != None:
         user = await session.scalar(select(tb.User).where(tb.User.tgId == tg_id))
     if id != None:
@@ -243,13 +244,13 @@ async def get_user(session, tg_id=None, id= None):
     return user
 
 @connection
-async def get_user_role(session, tg_id):
+async def get_user_role(session: AsyncSession, tg_id):
     user = await session.scalar(select(tb.User).where(tb.User.tgId == tg_id))
     role = await session.scalar(select(tb.Role).where(tb.Role.idRole == user.roleId))
     return role.roleName
 
 @connection
-async def chek_next_record(session, end)-> bool:
+async def chek_next_record(session: AsyncSession, end)-> bool:
     limit = 1
     offset = end - 1
     stmt = select(tb.Order).order_by(tb.Order.time).limit(limit).offset(offset)
@@ -258,7 +259,7 @@ async def chek_next_record(session, end)-> bool:
     return order is not None
 
 @connection
-async def take_order(session, tg_id, order_id)-> bool:
+async def take_order(session: AsyncSession, tg_id, order_id)-> bool:
 
     if await check_order_status(order_id=order_id, expectStatus = [1]):
         user = await session.scalar(select(tb.User).where(tb.User.tgId == tg_id))
@@ -280,21 +281,21 @@ async def take_order(session, tg_id, order_id)-> bool:
         return False
 
 @connection
-async def check_order_status(session, order_id, expectStatus: List[int])-> bool:
+async def check_order_status(session: AsyncSession, order_id, expectStatus: List[int])-> bool:
 
     order = await session.scalar(select(tb.Order).where(tb.Order.idOrder == order_id))
 
     return order.orderStatusId in expectStatus
 
 @connection
-async def get_order_photo(session, order_id):
+async def get_order_photo(session: AsyncSession, order_id):
 
     order = await session.scalar(select(tb.Order).where(tb.Order.idOrder == int(order_id)))
     
     return order.photoId
 
 @connection
-async def get_user_for_send(session, orderId, driver_id, action_text: str):
+async def get_user_for_send(session: AsyncSession, orderId, driver_id, action_text: str):
     order = await session.scalar(select(tb.Order).where(tb.Order.idOrder == orderId))
     disp = await session.scalar(select(tb.User).where(tb.User.idUser == order.dispatcherId))
     driver = await session.scalar(select(tb.User).where(tb.User.tgId == driver_id))
@@ -309,11 +310,11 @@ async def get_user_for_send(session, orderId, driver_id, action_text: str):
     return disp.tgId, final_message
 
 @connection
-async def get_drivers_for_alarm(session, order):
+async def get_drivers_for_alarm(session: AsyncSession, order):
     drivers = await session.scalars(select(tb.User).where(tb.User.roleId == 2))
 
 @connection
-async def complete_order(session, tg_id, order_id)-> bool:
+async def complete_order(session: AsyncSession, tg_id, order_id)-> bool:
 
     if await check_order_status(order_id=order_id, expectStatus= [2]):
         user = await session.scalar(select(tb.User).where(tb.User.tgId == tg_id))
@@ -334,7 +335,7 @@ async def complete_order(session, tg_id, order_id)-> bool:
         return False
 
 @connection
-async def edit_order(session, data):
+async def edit_order(session: AsyncSession, data):
     
     updates = {
         "cargoName": data.get("edit_cargo_name"),
@@ -356,7 +357,7 @@ async def edit_order(session, data):
     await session.execute(stmt)
     
 @connection
-async def take_off_complete_order(session, tg_id, order_id)-> None:
+async def take_off_complete_order(session: AsyncSession, tg_id, order_id)-> None:
 
         user = await session.scalar(select(tb.User).where(tb.User.tgId == tg_id))
         new_data={
@@ -463,3 +464,25 @@ async def export_orders_to_excel(
     except Exception as e:
         logging.error(f"Ошибка при экспорте заказов в Excel: {e}")
         raise
+
+@connection
+async def notificationDrivers(session: AsyncSession,  bot: Bot):
+    target_time = datetime.now + timedelta(minutes=15)
+    stmt = (
+        select(tb.Order)
+        .options(joinedload(tb.Order.executor))
+        .options(joinedload(tb.Order.cargoType))
+        .where(and_(
+            tb.Order.orderStatusId == 2,
+            tb.Order.time >= target_time - timedelta(seconds=30),
+            tb.Order.time <= target_time + timedelta(seconds=30)
+        ))
+    )
+
+    orders = await session.stream(stmt)
+    async for order in orders:
+        mes = "Напоминание:\n\n" + await form_order(order=order, cargo_type=order.cargoType.cargoTypeName)
+        try:
+            await bot.send_message(order.executor.tgId, mes)
+        except Exception as e:
+            logging.error(f"Ошибка отправки сообщения для заказа {order.idOrder}: {e}")
