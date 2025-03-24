@@ -16,11 +16,6 @@ dp = Dispatcher()
 dp.include_router(router)
 scheduler = AsyncIOScheduler()
 
-async def main():
-        await async_main()
-        await dp.start_polling(bot)
-
-
 async def on_startup(dp):
 
     scheduler.add_job(
@@ -36,6 +31,13 @@ async def on_startup(dp):
 
 async def on_shutdown(dp):
     scheduler.shutdown()
+
+dp.startup.register(on_startup)
+dp.shutdown.register(on_shutdown)
+
+async def main():
+        await async_main()
+        await dp.start_polling(bot)
      
 if __name__ == '__main__':
     try:
