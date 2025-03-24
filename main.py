@@ -27,6 +27,15 @@ async def on_startup(dp):
         timezone='Europe/Moscow',
         args=[bot]
     )
+
+    scheduler.add_job(
+        rq.dayEnd,  
+        'cron',  
+        day_of_week='mon-fri',  
+        hour='17:45',  
+        timezone='Europe/Moscow',
+        args=[bot]
+    )
     scheduler.start()
 
 async def on_shutdown(dp):

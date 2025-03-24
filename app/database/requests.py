@@ -344,6 +344,8 @@ async def edit_order(session: AsyncSession, data):
         "cargoTypeId": data.get("edit_cargo_type_id"),
         "depart_loc": data.get("edit_depart_loc"),
         "goal_loc": data.get("edit_goal_loc"),
+        "orderStatusId": data.get("edit_order_status"),
+        "isPostponed": data.get("set_postponned")
     }
     if data.get("edit_time") is not None:
         updates["time"] = datetime.strptime(data.get("edit_time"), '%H:%M %d.%m.%Y')
@@ -484,5 +486,26 @@ async def notificationDrivers(session: AsyncSession,  bot: Bot):
         mes = "Напоминание:\n\n" + await form_order(order=order, cargo_type=order.cargoType.cargoTypeName)
         try:
             await bot.send_message(order.executor.tgId, mes)
+        except Exception as e:
+            logging.error(f"Ошибка отправки сообщения для заказа {order.idOrder}: {e}")
+
+@connection
+async def dayEnd(session: AsyncSession, bot: Bot):
+    stmt = (
+        select(tb.Order)
+        .options(joinedload(tb.Order.dispatcher))
+        .options(joinedload(tb.Order.cargoType))
+        .where(and_(
+            tb.Order.orderStatusId == 1,
+            tb.Order.time == datetime.today()
+        ))
+    )
+
+    orders = (await session.execute(stmt)).scalars().all()
+
+    for order in orders:
+        mes = "Перенос заказа:\n\n" + await form_order(order=order, cargo_type=order.cargoType.cargoTypeName)
+        try:
+            await bot.send_message(order.dispatcher.tgId, mes, reply_markup= await kb.dayEndKb(orderId=order.idOrder))
         except Exception as e:
             logging.error(f"Ошибка отправки сообщения для заказа {order.idOrder}: {e}")

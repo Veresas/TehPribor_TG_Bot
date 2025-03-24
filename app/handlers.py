@@ -90,6 +90,9 @@ class ExportOrder(StatesGroup):
        period_set = State()
        start = State()
 
+class PostponedOrder(StatesGroup):
+       selectTime = State()
+
 @router.message(CommandStart())
 async def cmd_start(message:Message):
        if await rq.check_user(tg_id=message.from_user.id):
@@ -822,3 +825,51 @@ async def make_export(message: Message, state:FSMContext, date_from, date_to = N
               else:
                      await message.answer(f"Произошла ошибка при экспорте. Попробуйте позже")
               print("Ошибка экспорта: ", str(e))
+
+
+@router.callback_query(F.data.startswith("cmd_postpend_order"))
+async def postpend_order(callback: CallbackQuery, state: FSMContext):
+       orderId = callback.data.split(':')[1]
+       await callback.answer()
+       await state.set_state(PostponedOrder.selectTime)
+       await state.update_data(edit_day=datetime.today + timedelta(days=1), order_id = orderId)
+       await callback.message.edit_text('Выберите час:', reply_markup=kb.hourOrder)
+
+@router.callback_query(PostponedOrder.selectTime, F.data.startswith("hour_date_order"))
+async def process_edit_hour(callback: CallbackQuery, state: FSMContext):
+       hour = callback.data.split(':')[1]
+       await state.update_data(edit_hour=hour)
+       await callback.message.edit_text('Выберите минуту:', reply_markup=kb.minuteOrder)
+       await callback.answer()
+
+@router.callback_query(PostponedOrder.selectTime, F.data.startswith("minute_date_order"))
+async def process_edit_time(callback: CallbackQuery, state: FSMContext):
+       minute = callback.data.split(':')[1]
+       data = await state.get_data()
+       hour = data["edit_hour"]
+       day = data["edit_day"]
+       new_time = f'{hour}:{minute} {day}'
+       await state.update_data(edit_time=new_time, set_postponned = True)
+       data = await state.get_data()
+       try:
+              await rq.edit_order(data=data)
+              await callback.message.answer(f"Новое время: {new_time} сохранено")
+       except Exception as e:
+            logging.error(f'В функции переноса заказа произошла ошибка: {e} ')
+            await callback.message.answer(f"При переносе заказа произошла ошибка. Повторите попытку позже")
+       
+       await callback.answer()
+
+@router.callback_query(F.data.startswith("cmd_disp_cancel_order"))
+async def postpend_order(callback: CallbackQuery, state: FSMContext):
+       orderId = callback.data.split(':')[1]
+       await callback.answer()
+       data = {
+              "order_id": orderId,
+              "edit_order_status": 4
+       }
+       try:
+              await rq.edit_order(data=data)
+              await callback.message.answer(f"Заказ {data.get("order_id")} отменен")
+       except Exception as e:
+              logging.error(f"При отмене заказа {orderId} произошла ошибка: {e}")

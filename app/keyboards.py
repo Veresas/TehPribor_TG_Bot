@@ -204,3 +204,9 @@ exp_orders_kb = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='День'),
                                       [KeyboardButton(text="Свой период")]], 
                             resize_keyboard=True,
                             input_field_placeholder='Выберите пункт меню...')
+
+async def dayEndKb (orderId):
+    keyboard = InlineKeyboardBuilder()
+    keyboard.add(InlineKeyboardButton(text=str("Перенести заказ"), callback_data=f'cmd_postpend_order:{orderId}'))
+    keyboard.add(InlineKeyboardButton(text=str("Отменить заказ"), callback_data=f'cmd_disp_cancel_order:{orderId}'))
+    return keyboard.adjust(2).as_markup()
