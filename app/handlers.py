@@ -558,6 +558,28 @@ async def wath_photo_complete_take(callback: CallbackQuery, state: FSMContext):
               await callback.message.answer(f'У этого заказа нет фото')
 
 
+@router.callback_query(Privat_order_list.start, F.data.startswith('cmd_choice_order:'))
+async def disp_chois_order_action(callback: CallbackQuery, state: FSMContext):
+       orderId = callback.data.split(':')[1]
+       await callback.answer()
+       await callback.message.answer(f'Выберите действие над заказом {orderId}', reply_markup=kb.dispPrivetOrdersKey(orderId=orderId))
+
+@router.callback_query(Privat_order_list.start, F.data.startswith('cmd_cancel_order:'))
+async def cancel_order(callback: CallbackQuery, state: FSMContext):
+       orderId = callback.data.split(':')[1]
+       await callback.answer()
+       data = {
+              "order_id": orderId
+       }
+       try:
+              await rq.edit_order(data=data)
+              await callback.message.answer(f'Заказ {orderId} успешно отменен')
+              await state.clear()
+       except Exception as e:
+              logging.error(f"При отмене заказа {orderId} произошла ошибка: {e}")
+              await callback.message.answer(f"При отмене заказа поизошла ошибка. Побробуйте позже")
+
+
 @router.callback_query(Privat_order_list.start, F.data.startswith('cmd_edit_order:'))
 async def edit_order(callback: CallbackQuery, state: FSMContext):
        orderId = callback.data.split(':')[1]
@@ -836,14 +858,14 @@ async def postpend_order(callback: CallbackQuery, state: FSMContext):
        await callback.message.edit_text('Выберите час:', reply_markup=kb.hourOrder)
 
 @router.callback_query(PostponedOrder.selectTime, F.data.startswith("hour_date_order"))
-async def process_edit_hour(callback: CallbackQuery, state: FSMContext):
+async def postpend_edit_hour(callback: CallbackQuery, state: FSMContext):
        hour = callback.data.split(':')[1]
        await state.update_data(edit_hour=hour)
        await callback.message.edit_text('Выберите минуту:', reply_markup=kb.minuteOrder)
        await callback.answer()
 
 @router.callback_query(PostponedOrder.selectTime, F.data.startswith("minute_date_order"))
-async def process_edit_time(callback: CallbackQuery, state: FSMContext):
+async def postpend_edit_time(callback: CallbackQuery, state: FSMContext):
        minute = callback.data.split(':')[1]
        data = await state.get_data()
        hour = data["edit_hour"]
@@ -854,6 +876,7 @@ async def process_edit_time(callback: CallbackQuery, state: FSMContext):
        try:
               await rq.edit_order(data=data)
               await callback.message.answer(f"Новое время: {new_time} сохранено")
+              await state.clear()
        except Exception as e:
             logging.error(f'В функции переноса заказа произошла ошибка: {e} ')
             await callback.message.answer(f"При переносе заказа произошла ошибка. Повторите попытку позже")
@@ -861,7 +884,7 @@ async def process_edit_time(callback: CallbackQuery, state: FSMContext):
        await callback.answer()
 
 @router.callback_query(F.data.startswith("cmd_disp_cancel_order"))
-async def postpend_order(callback: CallbackQuery, state: FSMContext):
+async def dayEnd_cancel_order(callback: CallbackQuery):
        orderId = callback.data.split(':')[1]
        await callback.answer()
        data = {
@@ -873,3 +896,4 @@ async def postpend_order(callback: CallbackQuery, state: FSMContext):
               await callback.message.answer(f"Заказ {data.get("order_id")} отменен")
        except Exception as e:
               logging.error(f"При отмене заказа {orderId} произошла ошибка: {e}")
+              await callback.message.answer(f"При отмене заказа поизошла ошибка. Побробуйте позже")

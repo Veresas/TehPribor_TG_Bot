@@ -108,7 +108,7 @@ async def order_select_keyboard(data, isHistoruPraviteCatalog = False, isPrivatC
     if(data["userRole"] != "Водитель" and isPrivatCatalog):
         for kye in actiual_order_list:
             if await rq.check_order_status(order_id=kye,expectStatus=[1]):
-                keyboard.add(InlineKeyboardButton(text=str(kye), callback_data=f'cmd_edit_order:{kye}'))
+                keyboard.add(InlineKeyboardButton(text=str(kye), callback_data=f'cmd_choice_order:{kye}'))
 
     if start >= 5:
         keyboard.add(InlineKeyboardButton(text="<", callback_data=f'order_move_back'))
@@ -116,6 +116,13 @@ async def order_select_keyboard(data, isHistoruPraviteCatalog = False, isPrivatC
         keyboard.add(InlineKeyboardButton(text=">", callback_data=f'order_move_forward'))
     
     return keyboard.adjust(1).as_markup()
+
+async def dispPrivetOrdersKey(orderId):
+    keyboard = InlineKeyboardBuilder()
+    keyboard.add(InlineKeyboardButton(text="Редактировать", callback_data=f'cmd_edit_order:{orderId}'))
+    keyboard.add(InlineKeyboardButton(text="Отменить", callback_data=f'cmd_cancel_order:{orderId}'))
+    return keyboard.as_markup()
+
 
 async def order_day(tg_id):
     user_role = await rq.get_user_role(tg_id=tg_id)
