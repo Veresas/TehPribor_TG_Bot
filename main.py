@@ -31,8 +31,8 @@ async def on_startup():
         rq.dayEnd,  
         'cron',  
         day_of_week='mon-fri',  
-        hour='22',
-        minute='42',  
+        hour='17',
+        minute='45',  
         timezone='Europe/Moscow',
         args=[bot]
     )
