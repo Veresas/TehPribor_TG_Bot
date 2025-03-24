@@ -393,7 +393,8 @@ FIELDS = {
     "Время создания": lambda order: order.create_order_time.strftime("%Y-%m-%d %H:%M:%S"),
     "Время выполнения заказа": lambda order:( 
         (str(order.completion_time - order.pickup_time)).split('.')[0]
-        if order.completion_time else None)
+        if order.completion_time else None),
+    "Перенесен": lambda order: "Да" if order.isPostponed == True else "Нет"
 }
 
 @connection 
@@ -438,17 +439,86 @@ async def export_orders_to_excel(
 
             df = pd.DataFrame(data)
 
+            date_column = "Время создания"
+            time_to_take_column = "Время взятия заказа"
+            time_to_complete_column = "Время выполнения заказа"
+            postponed= "Перенесен"
+
+            df["Среднее время взятия"] = pd.NA
+            df["Среднее время выполнения"] = pd.NA
+            df["Количество перенесенных"] = pd.NA
+
+            df.sort_values(by=date_column, inplace=True)
+
+            # Получаем уникальные даты
+            dates = df[date_column].unique()
+
+            # Список для хранения DataFrame'ов каждого дня
+            dfs = []
+
+            # Обрабатываем каждый день
+            for date in dates:
+                # Извлекаем данные за текущий день
+                day_df = df[df[date_column] == date].copy()
+
+                # Вычисляем метрики для дня
+                avg_time_to_take = day_df[time_to_take_column].mean()
+                avg_time_to_complete = day_df[time_to_complete_column].mean()
+                num_transferred = day_df[postponed].sum()
+
+                # Создаем строку сводки для текущего дня
+                summary_row = pd.Series({
+                    date_column: date,
+                    "Среднее время взятия": avg_time_to_take,
+                    "Среднее время выполнения": avg_time_to_complete,
+                    "Количество перенесенных": num_transferred
+                })
+                summary_df = pd.DataFrame([summary_row])
+
+                # Объединяем сводку и данные заказов за день
+                day_combined = pd.concat([summary_df, day_df], ignore_index=True)
+                dfs.append(day_combined)
+
+            # Вычисляем общие метрики за весь период
+            overall_avg_time_to_take = df[time_to_take_column].mean()
+            overall_avg_time_to_complete = df[time_to_complete_column].mean()
+            overall_num_transferred = df[postponed].sum()
+
+            # Создаем итоговую сводную строку
+            overall_summary_row = pd.Series({
+                date_column: "Итого",
+                "Среднее время взятия": overall_avg_time_to_take,
+                "Среднее время выполнения": overall_avg_time_to_complete,
+                "Количество перенесенных": overall_num_transferred
+            })
+            overall_summary_df = pd.DataFrame([overall_summary_row])
+            final_df = pd.concat(dfs + [overall_summary_df], ignore_index=True)
+
             excel_file = BytesIO()
             with pd.ExcelWriter(excel_file, engine='openpyxl') as writer:
-                df.to_excel(writer, index=False, sheet_name='Orders')
+                final_df.to_excel(writer, index=False, sheet_name='Orders')
                 worksheet = writer.sheets['Orders']
 
+                time_columns = [time_to_complete_column, time_to_take_column]
+                for col in time_columns:
+                    col_idx = final_df.columns.get_loc(col) + 1
+                    for row in range(2, len(final_df) + 2):
+                        worksheet.cell(row=row, column=col_idx).number_format = '[h]:mm:ss'
+                
+                summary_time_columns = ["Среднее время взятия", "Среднее время выполнения"]
+                for col in summary_time_columns:
+                    col_idx = final_df.columns.get_loc(col) + 1
+                    for row in range(2, len(final_df) + 2):
+                        worksheet.cell(row=row, column=col_idx).number_format = '[h]:mm:ss'
+
                 col_idx = list(FIELDS.keys()).index("Время выполнения заказа") + 1
-                for row in range(2, len(df) + 2):
+                for row in range(2, len(final_df) + 2):
                     worksheet.cell(row=row, column=col_idx).number_format = '[h]:mm:ss'
-                for idx, column in enumerate(df.columns, 1):
-                    max_length = max(df[column].astype(str).map(len).max(), len(column)) + 2
+                    
+                for idx, column in enumerate(final_df.columns, 1):
+                    max_length = max(final_df[column].astype(str).map(len).max(), len(column)) + 2
                     worksheet.column_dimensions[get_column_letter(idx)].width = max_length
+
             excel_file.seek(0)
             return excel_file.getvalue()
 
