@@ -14,6 +14,7 @@ from openpyxl.utils import get_column_letter
 import app.keyboards as kb
 from sqlalchemy.ext.asyncio import AsyncSession
 from openpyxl.styles import Alignment
+import matplotlib.pyplot as plt
 
 def connection(func):
     async def inner(*args, **kwargs):
@@ -595,3 +596,53 @@ async def dayEnd(session: AsyncSession, bot: Bot):
             await bot.send_message(order.dispatcher.tgId, mes, reply_markup= await kb.dayEndKb(orderId=order.idOrder), parse_mode='HTML')
         except Exception as e:
             logging.error(f"Ошибка отправки сообщения для заказа {order.idOrder}: {e}")
+
+@connection
+async def export_diagrama(session, 
+    date_from: datetime = None,
+    date_to: datetime = datetime.today() + timedelta(days = 1)) -> BufferedInputFile:
+    
+    stmt = (
+        select(tb.Order)
+        .options(joinedload(tb.Order.executor))
+        .where(and_(
+            tb.Order.orderStatusId == 3,
+            tb.Order.completion_time >= date_from,
+            tb.Order.completion_time <= date_to
+        ))
+    )
+
+    result = await session.execute(stmt)
+    orders = result.scalars().all()
+
+    if not orders:
+        raise ValueError("Нет выполненных заказов за указанный период")
+    
+    driver_data = [
+        {"Водитель": order.executor.fio}
+        for order in orders if order.executor
+    ]
+
+    df = pd.DataFrame(driver_data)
+    driver_counts = df["Водитель"].value_counts()
+
+
+    plt.figure(figsize=(10, 6))
+    bars = plt.bar(driver_counts.index, driver_counts.values, color='skyblue', edgecolor='black')
+    plt.title("Продуктивность водителей")
+    plt.xlabel("Водитель")
+    plt.ylabel("Количество заказов")
+    plt.xticks(rotation=45, ha='right')
+    plt.grid(True)
+
+    for bar in bars:
+        yval = bar.get_height()
+        plt.text(bar.get_x() + bar.get_width()/2, yval + 0.1, int(yval), ha='center', va='bottom')
+
+    hist_file = BytesIO()
+    plt.savefig(hist_file, format='png', bbox_inches='tight')
+    plt.close()
+    hist_file.seek(0)
+
+    hist_filename = f"Диаграмма_транспортировщиков_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+    return BufferedInputFile(file=hist_file.getvalue(), filename=hist_filename)

@@ -17,12 +17,20 @@ router = Router()
 # region экспорт
 @router.message(Command('export'))
 async def cmd_export(message: Message, state: FSMContext):
+       await state.clear()
        role = await rq.get_user_role(tg_id=message.from_user.id)
        if (role == "Администратор"):
-              await message.answer("За какой период выгрузить данные?", reply_markup=kb.exp_orders_kb)
+              await message.answer("Какие данные экспортировать?", reply_markup=kb.exportchoice)
               await state.set_state(st.ExportOrder.choise)
        else:
               await message.answer("У вас не хватает прав доступа для использования этой команды")
+
+@router.callback_query(st.ExportOrder.choise, F.data.startswith("export:"))
+async def exp_type_choise(callback: CallbackQuery, state: FSMContext):
+       exp_type = callback.data.split(':')[1]
+       await callback.answer()
+       await state.update_data(expType = exp_type)
+       await callback.message.answer("За какой период выгрузить данные?", reply_markup=kb.exp_orders_kb)
 
 @router.message(st.ExportOrder.choise, F.text.lower().in_(["день", "неделя", "месяц", "год"]))
 async def status_order_catalog(message: Message, state:FSMContext):
@@ -58,6 +66,7 @@ async def status_order_catalog(message: Message, state:FSMContext):
 
 
 async def make_export(message: Message, state:FSMContext, date_from, date_to = None):
+       data = await state.get_data()
        if type(date_from) != datetime:
               date_from = datetime.strptime(date_from, '%d.%m.%Y')
 
@@ -66,8 +75,12 @@ async def make_export(message: Message, state:FSMContext, date_from, date_to = N
        else:
              date_to = datetime.today()
        try:
-              file = await rq.export_orders_to_excel(date_from=date_from,date_to=date_to)
-              await message.answer_document(file, caption="Выгрузка заказов")
+              if data["expType"] == "orders":
+                     file = await rq.export_orders_to_excel(date_from=date_from, date_to=date_to)
+                     await message.answer_document(file, caption="Выгрузка заказов", reply_markup=ReplyKeyboardRemove())
+              if data["expType"] == "drivers":
+                     diogram = await rq.export_diagrama(date_from=date_from, date_to=date_to)
+                     await message.answer_photo(diogram, caption="Гистограмма продуктивности водителей", reply_markup=ReplyKeyboardRemove())
        except Exception as e:
               if str(e) == "В базе данных нет заказов для указанных параметров":             
                      await message.answer(f"В заданный период данных нет")

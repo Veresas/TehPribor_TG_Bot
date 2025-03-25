@@ -89,6 +89,11 @@ privateCatalogKey = InlineKeyboardMarkup(inline_keyboard = [
     [InlineKeyboardButton(text='Посмотреть фото', callback_data=f'wath_photo_complete_order')]
 ])
 
+exportchoice = InlineKeyboardMarkup(inline_keyboard = [
+    [InlineKeyboardButton(text='Заказы', callback_data=f'export:orders'),
+     InlineKeyboardButton(text='Транспортировщики', callback_data=f'export:drivers')]
+])
+
 publicCatalogKey = InlineKeyboardMarkup(inline_keyboard = [
     [InlineKeyboardButton(text='Подтвердить взятие заказа', callback_data=f'accept_take_order')]
 ])
