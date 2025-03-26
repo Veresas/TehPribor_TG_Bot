@@ -15,6 +15,9 @@ import app.keyboards as kb
 from sqlalchemy.ext.asyncio import AsyncSession
 from openpyxl.styles import Alignment
 import matplotlib.pyplot as plt
+from cachetools import TTLCache
+
+user_cache = TTLCache(maxsize=100, ttl=300)
 
 def connection(func):
     async def inner(*args, **kwargs):
@@ -95,7 +98,7 @@ async def add_new_order(session: AsyncSession, data):
 async def alarm_for_drivers(session: AsyncSession, orderId, bot: Bot):
     drivers = await session.scalars(select(tb.User).where(tb.User.roleId == 2))
     order = await session.scalar(select(tb.Order).options(joinedload(tb.Order.cargoType)).where(tb.Order.idOrder == orderId))
-    mes = f'Срочный заказа:\n\n' + await form_order(order=order, cargo_type=order.cargoType.cargoTypeName)
+    mes = f'Срочный заказ:\n\n' + await form_order(order=order, cargo_type=order.cargoType.cargoTypeName)
     for driver in drivers:
         print("Оповещение пользователя")
         await bot.send_message(driver.tgId, mes, reply_markup=await kb.alarm_kb(orderId=orderId), parse_mode="HTML")
@@ -646,3 +649,24 @@ async def export_diagrama(session,
 
     hist_filename = f"Диаграмма_транспортировщиков_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
     return BufferedInputFile(file=hist_file.getvalue(), filename=hist_filename)
+
+@connection
+async def get_user_id(session: AsyncSession, tg_id: int) -> int:
+    if tg_id in user_cache:  
+        return user_cache[tg_id]  
+    
+    user = await session.scalar(select(tb.User).where(tb.User.tgId == tg_id))
+    user_cache[tg_id] = user.idUser
+    return user.idUser
+
+@connection
+async def save_location(session: AsyncSession, user_id, latitude, longitude, timestamp):
+
+    new_loc = tb.UserLocation(
+        user_id=user_id,
+        latitude=latitude,
+        longitude=longitude,
+        timestamp=timestamp,
+    )
+    print("\n", new_loc.user_id)
+    session.add(new_loc)

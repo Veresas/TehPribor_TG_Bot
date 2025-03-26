@@ -1,8 +1,9 @@
-from sqlalchemy import BigInteger, String, ForeignKey, DateTime, Text, Float, Boolean
+from sqlalchemy import BigInteger, Index, String, ForeignKey, DateTime, Text, Float, Boolean, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.ext.asyncio import AsyncAttrs, async_sessionmaker, create_async_engine
 import os 
 from dotenv import load_dotenv
+from datetime import datetime
 load_dotenv()
 
 DATABASE_URL = os.getenv('SQLALCHEMY_URL')
@@ -34,6 +35,7 @@ class User (Base):
         foreign_keys='Order.driverId'
     )
     role: Mapped['Role'] = relationship(back_populates='users')
+    locations: Mapped[list['UserLocation']] = relationship(back_populates='user')
 
 class Role(Base):
     __tablename__ = 'roles'
@@ -42,6 +44,25 @@ class Role(Base):
     roleName: Mapped[str] = mapped_column(String(50))
     
     users: Mapped[list['User']] = relationship(back_populates='role')
+
+class UserLocation(Base):
+    __tablename__ = 'userLocations'
+    
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.idUser'), nullable=False)
+    latitude: Mapped[float] = mapped_column(Float, nullable=False)
+    longitude: Mapped[float] = mapped_column(Float, nullable=False)
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now()
+    )
+    
+    __table_args__ = (
+        Index('idx_user_locations_user_id_timestamp', 'user_id', 'timestamp'),
+    )
+
+    user: Mapped['User'] = relationship(back_populates='locations') 
 
 class Order (Base):
     __tablename__= 'orders'
@@ -93,6 +114,8 @@ class OrderStatus (Base):
     orderStatusName: Mapped[str] = mapped_column(String(40))
 
     orders: Mapped[list['Order']] = relationship(back_populates='orderStatus')
+
+
 
 async def async_main():
     async with engine.begin() as conn:

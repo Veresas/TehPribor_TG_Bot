@@ -1,5 +1,5 @@
 from aiogram import F, Router, Bot
-from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove
+from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove, ContentType
 from aiogram.filters import CommandStart, Command, StateFilter
 
 from aiogram.fsm.context import FSMContext
@@ -389,6 +389,28 @@ async def edit_order(callback: CallbackQuery, state: FSMContext):
        await callback.answer()
        await callback.message.answer(mes, reply_markup= kb.edit_order_keyboard , parse_mode="HTML")
 # endregion
+
+@router.message(Command('start_work'))
+async def driver_start_work(message: Message):
+       await message.answer("Отправь свою геопозицию. Для отслеживания в реальном времени выбери live location.", reply_markup=kb.shearGPS)
+                
+
+@router.message(F.content_type == ContentType.LOCATION)
+async def handle_location(message: Message):
+    user_id = await rq.get_user_id(message.from_user.id)
+    loc = message.location
+    print(loc,"\n",loc.latitude ,"\n",loc.longitude ,"\n",message.date ,"\n")
+    # Сохраняем каждую точку в БД
+    await rq.save_location(
+        user_id=user_id,
+        latitude=loc.latitude,
+        longitude=loc.longitude,
+        timestamp=message.date
+    )
+
+@router.edited_message(F.content_type == ContentType.LOCATION)
+async def handle_location_edit(message: Message):
+       await handle_location(message)
 
 @router.message(Command('help'))
 async def cmd_help(message: Message):

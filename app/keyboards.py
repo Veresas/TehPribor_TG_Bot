@@ -222,3 +222,6 @@ async def dayEndKb (orderId):
     keyboard.add(InlineKeyboardButton(text=str("Перенести заказ"), callback_data=f'cmd_postpend_order:{orderId}'))
     keyboard.add(InlineKeyboardButton(text=str("Отменить заказ"), callback_data=f'cmd_disp_cancel_order:{orderId}'))
     return keyboard.adjust(2).as_markup()
+
+shearGPS = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="Поделиться геопозицией", request_location=True)]],
+                                resize_keyboard=True, one_time_keyboard=True)
