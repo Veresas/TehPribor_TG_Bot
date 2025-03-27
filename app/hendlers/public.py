@@ -399,7 +399,7 @@ async def driver_start_work(message: Message):
 async def handle_location(message: Message):
     user_id = await rq.get_user_id(message.from_user.id)
     loc = message.location
-    print(loc,"\n",loc.latitude ,"\n",loc.longitude ,"\n",message.date ,"\n")
+
     # Сохраняем каждую точку в БД
     await rq.save_location(
         user_id=user_id,
@@ -411,6 +411,18 @@ async def handle_location(message: Message):
 @router.edited_message(F.content_type == ContentType.LOCATION)
 async def handle_location_edit(message: Message):
        await handle_location(message)
+
+@router.message(Command('map'))
+async def get_map(message: Message):
+
+       map_image = await rq.get_map(tg_id=message.from_user.id, date=datetime.today())
+
+       if isinstance(map_image, str):
+        # Если вернулась строка, это сообщение об ошибке
+              await message.answer(map_image)
+       else:
+              # Если вернулся BufferedInputFile, отправляем фото
+              await message.answer_photo(photo=map_image, caption="Ваш маршрут")
 
 @router.message(Command('help'))
 async def cmd_help(message: Message):

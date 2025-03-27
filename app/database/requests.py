@@ -1,10 +1,10 @@
 from app.database.models import async_session
 import app.database.models as tb
-from sqlalchemy import select, and_, update
+from sqlalchemy import select, and_, update, func
 from sqlalchemy.orm import joinedload, selectinload
 import logging
 from datetime import datetime, timedelta
-from aiogram.utils.markdown import hbold, hunderline, hpre
+from aiogram.utils.markdown import hbold, hunderline
 from aiogram.types import BufferedInputFile
 from aiogram import Bot
 from typing import List
@@ -16,6 +16,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from openpyxl.styles import Alignment
 import matplotlib.pyplot as plt
 from cachetools import TTLCache
+import aiohttp
+from aiohttp import web
+from staticmap import StaticMap, Line
+import asyncio
 
 user_cache = TTLCache(maxsize=100, ttl=300)
 
@@ -100,7 +104,6 @@ async def alarm_for_drivers(session: AsyncSession, orderId, bot: Bot):
     order = await session.scalar(select(tb.Order).options(joinedload(tb.Order.cargoType)).where(tb.Order.idOrder == orderId))
     mes = f'Срочный заказ:\n\n' + await form_order(order=order, cargo_type=order.cargoType.cargoTypeName)
     for driver in drivers:
-        print("Оповещение пользователя")
         await bot.send_message(driver.tgId, mes, reply_markup=await kb.alarm_kb(orderId=orderId), parse_mode="HTML")
 
 statuses = {
@@ -552,7 +555,7 @@ async def export_orders_to_excel(
 
 @connection
 async def notificationDrivers(session: AsyncSession,  bot: Bot):
-    print("Начло оповещния водителей")
+
     target_time = datetime.now() + timedelta(minutes=1)
     stmt = (
         select(tb.Order)
@@ -590,12 +593,11 @@ async def dayEnd(session: AsyncSession, bot: Bot):
     )
 
     orders = (await session.execute(stmt)).scalars().all()
-    print("формируем список заказов")
     for order in orders:
-        print("Первый заказ: ", order)
+
         mes = "Перенос заказа:\n\n" + await form_order(order=order, cargo_type=order.cargoType.cargoTypeName)
         try:
-            print("Отправка сообщение диспетчеру: ", order.dispatcher.tgId)
+
             await bot.send_message(order.dispatcher.tgId, mes, reply_markup= await kb.dayEndKb(orderId=order.idOrder), parse_mode='HTML')
         except Exception as e:
             logging.error(f"Ошибка отправки сообщения для заказа {order.idOrder}: {e}")
@@ -668,5 +670,54 @@ async def save_location(session: AsyncSession, user_id, latitude, longitude, tim
         longitude=longitude,
         timestamp=timestamp,
     )
-    print("\n", new_loc.user_id)
+
     session.add(new_loc)
+
+@connection
+async def get_map(session: AsyncSession, tg_id, date):
+    
+    #user_id = await get_user_id(tg_id = tg_id)
+    user_id = 2
+    date = datetime.today() - timedelta(days=1)
+
+    stmt = (
+        select(tb.UserLocation)
+        .where(and_ (func.date(tb.UserLocation.timestamp) == date.date(),
+                     tb.UserLocation.user_id == user_id))
+        .order_by((tb.UserLocation.created_at))
+    )
+
+    results = await session.stream(stmt)
+    locations = await results.scalars().all()
+
+    if len(locations) < 2:
+        return "Недостаточно данных для построения маршрута. Требуется хотя бы две точки."
+    
+    coordinates = [(loc.longitude, loc.latitude) for loc in locations]
+    coordinates = coordinates[::10]
+    route_points = ','.join([f'{lat},{lon}' for lat, lon in coordinates])
+
+    loop = asyncio.get_event_loop()
+    image_data = await loop.run_in_executor(None, generate_map, coordinates)
+
+    return BufferedInputFile(file=image_data, filename="route_map.png")
+
+def generate_map(coordinates):
+    
+    
+    # Создаём объект карты с размерами 800x600 пикселей
+    m = StaticMap(800, 600)
+    
+    # Создаём линию маршрута: синяя, толщиной 5 пикселей
+    line = Line(coordinates, 'blue', 5)
+    m.add_line(line)
+
+    # Рендерим карту в изображение
+    image = m.render()
+
+    # Сохраняем изображение в буфер памяти
+    image_io = BytesIO()
+    image.save(image_io, 'PNG')
+    image_io.seek(0)
+
+    return image_io.getvalue()
