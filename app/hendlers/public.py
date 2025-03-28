@@ -73,37 +73,61 @@ async def register(message: Message, state:FSMContext):
               await state.set_state(st.Register.role)
               await message.answer('Выберите роль. Для отмены регистрации введите /cancel', reply_markup = kb.roles)       
 
-@router.callback_query(st.Register.role, F.data.startswith('role_') )
+@router.callback_query(StateFilter(st.Register.role, st.ChangeRole.start), F.data.startswith('role_') )
 async def register_role(calback: CallbackQuery, state: FSMContext):
+       current_state = await state.get_state()
        calbackRole = calback.data.split('_')[1]
        await state.update_data(role = calbackRole)
-       await state.set_state(st.Register.pas)
+
+       if current_state == st.Register.role.state:
+              next_state = st.Register.pas
+       else:
+              next_state = st.ChangeRole.pas
+
+       await state.set_state(next_state)
        await calback.answer()
        await calback.message.answer('Введите выданный вам пароль', reply_markup=ReplyKeyboardRemove())
 
-@router.message(st.Register.pas)
+@router.message(StateFilter(st.Register.pas, st.ChangeRole.pas))
 async def register_pas(message: Message, state:FSMContext):
+       current_state = await state.get_state()
        data = await state.get_data()
        match data['role']:
               case 'disp':
                      if message.text == os.getenv('DSPETCHER_PAS'):
-                            await state.set_state(st.Register.fio)
-                            await state.update_data(role='Диспетчер')
-                            await message.answer('Введите ваше ФИО')
+                            if current_state == st.Register.pas.state:
+                                   await state.set_state(st.Register.fio)
+                                   await state.update_data(role='Диспетчер')
+                                   await message.answer('Введите ваше ФИО')
+                            else:
+                                   await rq.change_role(data=data, id_role=1)
+                                   await message.answer("Роль обнавлена")
+                                   await state.clear()
+
                      else:
                             await message.answer('Пароль неверный')
               case 'driver':
                      if message.text == os.getenv('DRIVERS_PAS'):
-                            await state.set_state(st.Register.fio)
-                            await state.update_data(role='Водитель')
-                            await message.answer('Введите ваше ФИО')
+                            if current_state == st.Register.pas.state:
+                                   await state.set_state(st.Register.fio)
+                                   await state.update_data(role='Водитель')
+                                   await message.answer('Введите ваше ФИО')
+                            else:
+                                   await rq.change_role(data=data, id_role=2)
+                                   await message.answer("Роль обнавлена")
+                                   await state.clear()
                      else:
                             await message.answer('Пароль неверный')
               case 'admin':
                      if message.text == os.getenv('ADMIN_PAS'):
-                            await state.set_state(st.Register.fio)
-                            await state.update_data(role='Администратор')
-                            await message.answer('Введите ваше ФИО')
+                            if current_state == st.Register.pas.state:
+                                   await state.set_state(st.Register.fio)
+                                   await state.update_data(role='Администратор')
+                                   await message.answer('Введите ваше ФИО')
+                            else:
+                                   await rq.change_role(data=data, id_role=3)
+                                   await message.answer("Роль обнавлена")
+                                   await state.clear()
                      else:
                             await message.answer('Пароль неверный')
 
@@ -423,6 +447,13 @@ async def get_map(message: Message):
        else:
               # Если вернулся BufferedInputFile, отправляем фото
               await message.answer_photo(photo=map_image, caption="Ваш маршрут")
+
+@router.message(Command('change_role'))
+async def cahnge_role(message: Message, state: FSMContext):
+       await state.set_state(st.ChangeRole.start)
+       await state.update_data(tg_id = message.from_user.id)
+       await message.answer('Выберите роль. Для отмены регистрации введите /cancel', reply_markup = kb.roles)  
+
 
 @router.message(Command('help'))
 async def cmd_help(message: Message):

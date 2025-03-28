@@ -48,3 +48,7 @@ class ExportOrder(StatesGroup):
 
 class PostponedOrder(StatesGroup):
        selectTime = State()
+
+class ChangeRole(StatesGroup):
+       start = State()
+       pas = State()

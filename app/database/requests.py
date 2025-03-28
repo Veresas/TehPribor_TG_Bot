@@ -16,8 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from openpyxl.styles import Alignment
 import matplotlib.pyplot as plt
 from cachetools import TTLCache
-import aiohttp
-from aiohttp import web
+
 from staticmap import StaticMap, Line
 import asyncio
 
@@ -721,3 +720,19 @@ def generate_map(coordinates):
     image_io.seek(0)
 
     return image_io.getvalue()
+
+@connection
+async def change_role(session: AsyncSession, data, id_role):
+        
+        user = await session.scalar(select(tb.User).where(tb.User.tgId == data["tg_id"]))
+        new_data={
+            "roleId": id_role
+        }
+
+        stmt = (
+            update(tb.User)
+            .where(tb.User.idUser == user.idUser)
+            .values(**new_data)
+        )
+
+        await session.execute(stmt)
