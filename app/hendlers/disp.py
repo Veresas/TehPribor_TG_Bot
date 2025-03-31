@@ -145,7 +145,6 @@ async def minute_date_order(calback: CallbackQuery, state: FSMContext):
 async def new_order_accept(callback: CallbackQuery, state: FSMContext):
        data = await state.get_data() 
        order_id = await rq.add_new_order(data=data)
-       print("Получение ордер айди", {order_id})
        if data["isUrgent"]:
               print("Активация функции оповищения")
               await rq.alarm_for_drivers(orderId=order_id, bot= callback.bot)

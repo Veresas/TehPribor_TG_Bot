@@ -32,7 +32,7 @@ async def exp_type_choise(callback: CallbackQuery, state: FSMContext):
        await state.update_data(expType = exp_type)
        await callback.message.answer("За какой период выгрузить данные?", reply_markup=kb.exp_orders_kb)
 
-@router.message(st.ExportOrder.choise, F.text.lower().in_(["день", "неделя", "месяц", "год", "cвой период"]))
+@router.message(st.ExportOrder.choise, F.text.lower().in_(["день", "неделя", "месяц", "год", "свой"]))
 async def status_order_catalog(message: Message, state:FSMContext):
        per = message.text.lower()
        match per:
@@ -44,7 +44,7 @@ async def status_order_catalog(message: Message, state:FSMContext):
                      date_from = datetime.now() - timedelta(days=30)
               case "год":
                      date_from = datetime.now() - timedelta(days=365)
-              case "свой период":
+              case "свой":
                      await state.set_state(st.ExportOrder.period_set)
                      await message.answer("Введите чило в формате ДД.ММ.ГГГГ-ДД.ММ.ГГГГ")
                      return
@@ -59,7 +59,7 @@ async def status_order_catalog(message: Message, state:FSMContext):
 async def status_order_catalog(message: Message, state:FSMContext):
        if valid.valid_exp_period (message.text):
               date_from, date_to = message.text.split('-')
-              await state.get_state(st.ExportOrder.start)
+              await state.set_state(st.ExportOrder.start)
               await make_export(message, state, date_from, date_to)
        else:
               await message.answer("Некорректный формат введных данных. Повторите еще раз")

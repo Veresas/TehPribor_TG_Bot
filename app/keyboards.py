@@ -13,6 +13,7 @@ choseOrderStatusList = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='До�
                                       [KeyboardButton(text='Завершен'),
                                       KeyboardButton(text='Все')]], 
                             resize_keyboard=True,
+                            one_time_keyboard=True,
                             input_field_placeholder='Выберите пункт меню...')
 
 roles = InlineKeyboardMarkup(inline_keyboard= [
@@ -142,6 +143,7 @@ async def order_day(tg_id):
 
     order_list_categori = builder.as_markup(
         resize_keyboard=True,
+        one_time_keyboard=True,
         input_field_placeholder='Выберите пункт меню...'
     )
     return order_list_categori
@@ -150,6 +152,7 @@ async def order_day(tg_id):
 private_order_list_kb = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='Активные заказы'),
                                       KeyboardButton(text='История заказов')]], 
                             resize_keyboard=True,
+                            one_time_keyboard=True,
                             input_field_placeholder='Выберите пункт меню...')
 
 async def alarm_kb(orderId):
@@ -213,8 +216,9 @@ exp_orders_kb = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='День'),
                                       KeyboardButton(text='Неделя')],
                                       [KeyboardButton(text='Месяц'),
                                       KeyboardButton(text="Год")],
-                                      [KeyboardButton(text="Свой период")]], 
+                                      [KeyboardButton(text="Свой")]], 
                             resize_keyboard=True,
+                            one_time_keyboard=True,
                             input_field_placeholder='Выберите пункт меню...')
 
 async def dayEndKb (orderId):
