@@ -1,6 +1,6 @@
-from aiogram import F, Router, Bot
+from aiogram import F, Router
 from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove
-from aiogram.filters import CommandStart, Command, StateFilter
+from aiogram.filters import Command
 
 from aiogram.fsm.context import FSMContext
 import app.validators as valid
@@ -8,7 +8,6 @@ import app.keyboards as kb
 import app.database.requests as rq
 
 from datetime import datetime, timedelta
-from aiogram.types import BotCommand
 import logging
 import app.utils.states as st
 
@@ -90,8 +89,9 @@ async def get_order_photo(message: Message, state: FSMContext):
        
 @router.callback_query(st.Order.alarm, F.data == "cmd_alarm_order_accept")
 async def accept_alarm_order(calback: CallbackQuery, state: FSMContext):
-       print("Устанвка срочности заказа")
        await calback.answer()
+       print("Устанвка срочности заказа")
+
        await state.update_data(isUrgent= True)
        await state.set_state(st.Order.time)
        await calback.message.answer('Выберите день', reply_markup= kb.dateOrder)

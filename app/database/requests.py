@@ -608,6 +608,7 @@ async def export_diagrama(session,
     
     stmt = (
         select(tb.Order)
+        .options(joinedload(tb.Order.cargoType))
         .options(joinedload(tb.Order.executor))
         .where(and_(
             tb.Order.orderStatusId == 3,
@@ -622,26 +623,78 @@ async def export_diagrama(session,
     if not orders:
         raise ValueError("Нет выполненных заказов за указанный период")
     
-    driver_data = [
-        {"Водитель": order.executor.fio}
-        for order in orders if order.executor
+    data = [
+        {"Водитель": order.executor.fio,
+         "Группа груза": order.cargoType.cargoTypeName,
+         "Время выполнения (сек)": (order.completion_time - order.pickup_time).total_seconds()
+         }
+        for order in orders if order.executor and order.cargoType
     ]
 
-    df = pd.DataFrame(driver_data)
+    df = pd.DataFrame(data)
+    driver_cargo = pd.crosstab(df["Водитель"], df["Группа груза"])
+    driver_time = df.groupby("Водитель")["Время выполнения (сек)"].mean()
     driver_counts = df["Водитель"].value_counts()
+    cargo_counts = df["Группа груза"].value_counts()
 
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(17, 12), height_ratios=[1, 1])
 
-    plt.figure(figsize=(10, 6))
-    bars = plt.bar(driver_counts.index, driver_counts.values, color='skyblue', edgecolor='black')
-    plt.title("Продуктивность водителей")
-    plt.xlabel("Водитель")
-    plt.ylabel("Количество заказов")
-    plt.xticks(rotation=45, ha='right')
-    plt.grid(True)
+    plt.subplots_adjust(left=0.1, right=0.65, top=0.95, bottom=0.1, hspace=0.3)
 
-    for bar in bars:
+    driver_cargo.plot(kind='bar', stacked=True, ax=ax1, color=plt.cm.Set3(range(len(driver_cargo.columns))), edgecolor='black')
+    ax1.set_title("Количество заказов по водителям с разбиением по типам грузов")
+    ax1.set_xlabel("Водитель")
+    ax1.set_ylabel("Количество заказов")
+    ax1.tick_params(axis='x', rotation=45)
+    ax1.grid(True, axis='y')
+    ax1.legend(title="Группа груза", bbox_to_anchor=(1.05, 1), loc='upper left')
+
+    for i, driver in enumerate(driver_cargo.index):
+        cumulative_height = 0  # Суммарная высота для текущего столбца
+        for j, cargo_type in enumerate(driver_cargo.columns):
+            value = driver_cargo.loc[driver, cargo_type]
+            if value > 0:  # Отображаем только ненулевые значения
+                cumulative_height += value
+                # Позиция текста — в середине сегмента
+                text_y = cumulative_height - (value / 2)
+                ax1.text(i, text_y, int(value), ha='center', va='center', fontsize=8, color='black')
+
+    for i, total in enumerate(driver_cargo.sum(axis=1)):
+        ax1.text(i, total + 0.5, int(total), ha='center', va='bottom')
+
+    bars2 = ax2.bar(driver_time.index, driver_time.values / 60, color='lightgreen', edgecolor='black')  # Переводим секунды в минуты
+    ax2.set_title("Среднее время выполнения заказов по водителям (в минутах)")
+    ax2.set_xlabel("Водитель")
+    ax2.set_ylabel("Среднее время (мин)")
+    ax2.tick_params(axis='x', rotation=45)
+    ax2.grid(True, axis='y')
+    for bar in bars2:
         yval = bar.get_height()
-        plt.text(bar.get_x() + bar.get_width()/2, yval + 0.1, int(yval), ha='center', va='bottom')
+        ax2.text(bar.get_x() + bar.get_width()/2, yval + 0.5, f"{yval:.1f}", ha='center', va='bottom')
+
+    cargo_stats = pd.DataFrame({"Количество": cargo_counts})
+    cargo_table_data = [["Группа груза", "Количество"]] + cargo_stats.reset_index().values.tolist()
+    cargo_table = plt.table(cellText=cargo_table_data,
+                           colWidths=[0.15, 0.1],
+                           loc='right',
+                           bbox=[1.35, 0.55, 0.45, 0.45])  # Справа от верхней диаграммы
+    cargo_table.auto_set_font_size(False)
+    cargo_table.set_fontsize(10)
+    cargo_table.auto_set_column_width([0, 1])
+
+    driver_stats = pd.DataFrame({"Количество": driver_counts})
+    driver_table_data = [["ФИО исполнителя", "Количество"]] + driver_stats.reset_index().values.tolist()
+    driver_table = plt.table(cellText=driver_table_data,
+                            colWidths=[0.15, 0.1],
+                            loc='right',
+                            bbox=[1.35, 0.05, 0.45, 0.45])  # Справа от нижней диаграммы
+    driver_table.auto_set_font_size(False)
+    driver_table.set_fontsize(10)
+    driver_table.auto_set_column_width([0, 1])
+    
+    ax1.legend(title="Группа груза", bbox_to_anchor=(1.0, 1), loc='upper left')
+
+    plt.tight_layout()
 
     hist_file = BytesIO()
     plt.savefig(hist_file, format='png', bbox_inches='tight')

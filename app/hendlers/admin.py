@@ -1,6 +1,6 @@
-from aiogram import F, Router, Bot
+from aiogram import F, Router
 from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove
-from aiogram.filters import CommandStart, Command, StateFilter
+from aiogram.filters import Command
 
 from aiogram.fsm.context import FSMContext
 import app.validators as valid
@@ -8,8 +8,6 @@ import app.keyboards as kb
 import app.database.requests as rq
 
 from datetime import datetime, timedelta
-from aiogram.types import BotCommand
-import logging
 import app.utils.states as st
 
 router = Router()
