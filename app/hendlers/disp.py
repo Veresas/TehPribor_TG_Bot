@@ -355,3 +355,17 @@ async def dayEnd_cancel_order(callback: CallbackQuery):
               logging.error(f"При отмене заказа {orderId} произошла ошибка: {e}")
               await callback.message.answer(f"При отмене заказа поизошла ошибка. Побробуйте позже")
 # endregion
+
+@router.callback_query(F.data.startswith('cmd_rate:'))
+async def set_rate(callback: CallbackQuery):
+       _, rate, orderId = callback.data.split(':')
+       rate = int(rate)
+       orderId= int(orderId)
+       await callback.answer()
+       try:
+              await rq.set_driver_rate(orderId=orderId,rate=rate)
+              await callback.message.edit_reply_markup(reply_markup=None)
+              await callback.message.answer("Оценка записана")
+       except Exception as e:
+              await callback.message.answer("Ошибка добавления оценки. Попробуйте позже")
+

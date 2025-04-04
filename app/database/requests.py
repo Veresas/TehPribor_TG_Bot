@@ -302,7 +302,7 @@ async def get_order_photo(session: AsyncSession, order_id):
     return order.photoId
 
 @connection
-async def get_user_for_send(session: AsyncSession, orderId, driver_id, action_text: str):
+async def get_user_for_send(session: AsyncSession, orderId, driver_id, action_text: str, optin_mes: str = None):
     order = await session.scalar(select(tb.Order).where(tb.Order.idOrder == orderId))
     disp = await session.scalar(select(tb.User).where(tb.User.idUser == order.dispatcherId))
     driver = await session.scalar(select(tb.User).where(tb.User.tgId == driver_id))
@@ -314,6 +314,8 @@ async def get_user_for_send(session: AsyncSession, orderId, driver_id, action_te
         f"Телефон: {driver.phone}\n\n"       
     )
     final_message = fromatted_mes + formatted_order
+    if optin_mes != None:
+        final_message = final_message + optin_mes
     return disp.tgId, final_message
 
 @connection
@@ -626,9 +628,13 @@ async def export_diagrama(session,
     data = [
         {"Водитель": order.executor.fio,
          "Группа груза": order.cargoType.cargoTypeName,
-         "Время выполнения (сек)": (order.completion_time - order.pickup_time).total_seconds()
+         "Время выполнения (сек)": (
+         (order.completion_time - order.pickup_time).total_seconds() 
+         if order.completion_time.date() == order.pickup_time.date() 
+         else None
+        )
          }
-        for order in orders if order.executor and order.cargoType
+        for order in orders if order.executor and order.cargoType and order.completion_time.date() == order.pickup_time.date()
     ]
 
     df = pd.DataFrame(data)
@@ -650,12 +656,12 @@ async def export_diagrama(session,
     ax1.legend(title="Группа груза", bbox_to_anchor=(1.05, 1), loc='upper left')
 
     for i, driver in enumerate(driver_cargo.index):
-        cumulative_height = 0  # Суммарная высота для текущего столбца
+        cumulative_height = 0  
         for j, cargo_type in enumerate(driver_cargo.columns):
             value = driver_cargo.loc[driver, cargo_type]
-            if value > 0:  # Отображаем только ненулевые значения
+            if value > 0: 
                 cumulative_height += value
-                # Позиция текста — в середине сегмента
+            
                 text_y = cumulative_height - (value / 2)
                 ax1.text(i, text_y, int(value), ha='center', va='center', fontsize=8, color='black')
 
@@ -789,3 +795,17 @@ async def change_role(session: AsyncSession, data, id_role):
         )
 
         await session.execute(stmt)
+
+@connection
+async def set_driver_rate(session: AsyncSession, orderId, rate):
+    updates = {
+        "driverRate": rate
+    }
+
+    stmt = (
+        update(tb.Order)
+        .where(tb.Order.idOrder == orderId)
+        .values(**updates)
+    )
+
+    await session.execute(stmt)

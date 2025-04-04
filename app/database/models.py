@@ -87,6 +87,7 @@ class Order (Base):
     create_order_time: Mapped[DateTime] = mapped_column(DateTime())
     isUrgent: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     isPostponed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    driverRate: Mapped[int] = mapped_column(default=None)
     
     cargoType: Mapped['CargoType'] = relationship(back_populates='orders')
     orderStatus: Mapped['OrderStatus'] = relationship(back_populates='orders')

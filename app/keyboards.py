@@ -229,3 +229,16 @@ async def dayEndKb (orderId):
 
 shearGPS = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="Поделиться геопозицией", request_location=True)]],
                                 resize_keyboard=True, one_time_keyboard=True)
+
+async def rateKey(orderId):
+    rateKey = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text='1', callback_data=f'cmd_rate:1:{orderId}'),
+            InlineKeyboardButton(text='2', callback_data=f'cmd_rate:2:{orderId}'),
+            InlineKeyboardButton(text='3', callback_data=f'cmd_rate:3:{orderId}'),
+            InlineKeyboardButton(text='4', callback_data=f'cmd_rate:4:{orderId}'),
+            InlineKeyboardButton(text='5', callback_data=f'cmd_rate:5:{orderId}')
+        ]
+    ])
+    return rateKey
+
