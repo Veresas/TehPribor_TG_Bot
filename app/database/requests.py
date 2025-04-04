@@ -21,6 +21,7 @@ from staticmap import StaticMap, Line
 import asyncio
 
 user_cache = TTLCache(maxsize=100, ttl=300)
+dep_build_cache = TTLCache(maxsize=200, ttl=86400)
 
 def connection(func):
     async def inner(*args, **kwargs):
@@ -809,3 +810,44 @@ async def set_driver_rate(session: AsyncSession, orderId, rate):
     )
 
     await session.execute(stmt)
+
+
+async def get_dep_build_id(dep_id: int, build_id: int) -> int:
+    for entry in dep_build_cache["department_buildings"]:
+        if entry["department_id"] == dep_id and entry["building_id"] == build_id:
+            return entry["id"]
+    raise ValueError(f"Не найдена запись DepartmentBuilding в кеше. Атрубуты: department_id={dep_id} and building_id={build_id}")
+
+async def get_dep_name(dep_id: int) -> str:
+    deps = dep_build_cache.get("departments", [])
+    for dep in deps:
+        if dep["idDepartment"] == dep_id:
+            return dep["departmentName"]
+    raise ValueError(f"Не найдена запись Department в кеше. Атрибут: id={dep_id}")
+
+async def get_build_name(build_id: int) -> str:
+    bulds = dep_build_cache.get("buildings", [])
+    for buld in bulds:
+        if buld["idBuilding"] == build_id:
+            return bulds["buildingName"]
+    raise ValueError(f"Не найдена запись Building в кеше. Атрибут: id={build_id}")
+
+@connection
+async def dep_build_set(session: AsyncSession):
+    deps = list(session.scalars(select(tb.Department)))
+    build = list(session.scalars(select(tb.Building)))
+    dep_build = list(session.scalars(select(tb.DepartmentBuilding)))
+
+    dep_build_cache.clear()
+    dep_build_cache["department_buildings"] = [
+        {"id": db.idDepartmentBuilding, "department_id": db.departmentId, "building_id": db.buildingId, "description": db.description}
+        for db in dep_build
+    ]
+    dep_build_cache["departments"] = [
+        {"idDepartment": dep.idDepartment, "departmentName": dep.departmentName}
+        for dep in deps
+    ]
+    dep_build_cache["buildings"] = [
+        {"idBuilding": b.idBuilding, "buildingName": b.buildingName}
+        for b in build
+    ]

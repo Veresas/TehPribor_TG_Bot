@@ -1,4 +1,4 @@
-from sqlalchemy import BigInteger, Index, String, ForeignKey, DateTime, Text, Float, Boolean, func
+from sqlalchemy import BigInteger, Index, String, ForeignKey, DateTime, Text, Float, Boolean, func, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.ext.asyncio import AsyncAttrs, async_sessionmaker, create_async_engine
 import os 
@@ -116,7 +116,62 @@ class OrderStatus (Base):
 
     orders: Mapped[list['Order']] = relationship(back_populates='orderStatus')
 
+# Модель для таблицы department_types
+class DepartmentType(Base):
+    __tablename__ = 'department_types'
 
+    idDepartmentType: Mapped[int] = mapped_column(primary_key=True)
+    departmentTypeName: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+
+    departments: Mapped[list['Department']] = relationship(back_populates='departmentType')
+
+# Модель для таблицы departments
+class Department(Base):
+    __tablename__ = 'departments'
+
+    idDepartment: Mapped[int] = mapped_column(primary_key=True)
+    departmentName: Mapped[str] = mapped_column(String(255), nullable=False)
+    departmentTypeId: Mapped[int] = mapped_column(ForeignKey('department_types.idDepartmentType'))
+
+    departmentType: Mapped['DepartmentType'] = relationship(back_populates='departments')
+    departmentBuildings: Mapped[list['DepartmentBuilding']] = relationship(back_populates='department')
+
+    # Добавление индекса idx_departments_department_name
+    __table_args__ = (
+        Index('idx_departments_department_name', 'departmentName'),
+    )
+
+# Модель для таблицы buildings
+class Building(Base):
+    __tablename__ = 'buildings'
+
+    idBuilding: Mapped[int] = mapped_column(primary_key=True)
+    buildingName: Mapped[str] = mapped_column(String(255), nullable=False)
+
+    departmentBuildings: Mapped[list['DepartmentBuilding']] = relationship(back_populates='building')
+
+    # Добавление индекса idx_buildings_building_name
+    __table_args__ = (
+        Index('idx_buildings_building_name', 'buildingName'),
+    )
+
+# Модель для таблицы department_buildings
+class DepartmentBuilding(Base):
+    __tablename__ = 'department_buildings'
+
+    idDepartmentBuilding: Mapped[int] = mapped_column(primary_key=True)
+    departmentId: Mapped[int] = mapped_column(ForeignKey('departments.idDepartment'))
+    buildingId: Mapped[int] = mapped_column(ForeignKey('buildings.idBuilding'))
+    description: Mapped[str] = mapped_column(String(255), nullable=True)
+
+    department: Mapped['Department'] = relationship(back_populates='departmentBuildings')
+    building: Mapped['Building'] = relationship(back_populates='departmentBuildings')
+
+    __table_args__ = (
+        UniqueConstraint('departmentId', 'buildingId', name='department_buildings_department_id_building_id_key'),
+        Index('idx_department_buildings_department_id', 'departmentId'),
+        Index('idx_department_buildings_building_id', 'buildingId'),
+    )
 
 async def async_main():
     async with engine.begin() as conn:
