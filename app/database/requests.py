@@ -814,31 +814,38 @@ async def set_driver_rate(session: AsyncSession, orderId, rate):
     await session.execute(stmt)
 
 
-async def get_dep_build_id(dep_id: int, build_id: int) -> int:
+def get_dep_build_id(dep_id: int, build_id: int) -> int:
     for entry in dep_build_cache["department_buildings"]:
         if entry["department_id"] == dep_id and entry["building_id"] == build_id:
-            return entry["id"]
+            return entry["id"] 
     raise ValueError(f"Не найдена запись DepartmentBuilding в кеше. Атрубуты: department_id={dep_id} and building_id={build_id}")
 
-async def get_dep_name(dep_id: int) -> str:
+def get_dep_name(dep_id: int) -> str:
     deps = dep_build_cache.get("departments", [])
     for dep in deps:
         if dep["idDepartment"] == dep_id:
             return dep["departmentName"]
     raise ValueError(f"Не найдена запись Department в кеше. Атрибут: id={dep_id}")
 
-async def get_build_name(build_id: int) -> str:
+def get_build_name(build_id: int) -> str:
     bulds = dep_build_cache.get("buildings", [])
     for buld in bulds:
         if buld["idBuilding"] == build_id:
-            return bulds["buildingName"]
+            return buld["buildingName"]
     raise ValueError(f"Не найдена запись Building в кеше. Атрибут: id={build_id}")
+
+async def get_bilds_List(dep_id: int):
+    buildsId = {}
+    for entry in dep_build_cache["department_buildings"]:
+        if entry["department_id"] == dep_id:
+            buildsId[entry["id"]] = entry["building_id"]
+    return buildsId
 
 @connection
 async def dep_build_set(session: AsyncSession):
-    deps = list(session.scalars(select(tb.Department)))
-    build = list(session.scalars(select(tb.Building)))
-    dep_build = list(session.scalars(select(tb.DepartmentBuilding)))
+    deps = list(await session.scalars(select(tb.Department)))
+    build = list(await session.scalars(select(tb.Building)))
+    dep_build = list(await session.scalars(select(tb.DepartmentBuilding)))
 
     dep_build_cache.clear()
     dep_build_cache["department_buildings"] = [
@@ -846,7 +853,7 @@ async def dep_build_set(session: AsyncSession):
         for db in dep_build
     ]
     dep_build_cache["departments"] = [
-        {"idDepartment": dep.idDepartment, "departmentName": dep.departmentName}
+        {"idDepartment": dep.idDepartment, "departmentName": dep.departmentName, "typeId": dep.departmentTypeId}
         for dep in deps
     ]
     dep_build_cache["buildings"] = [

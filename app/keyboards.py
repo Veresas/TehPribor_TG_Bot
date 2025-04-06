@@ -242,48 +242,21 @@ async def rateKey(orderId):
     ])
     return rateKey
 
-departments = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text='21', callback_data='departments:21'),
-     InlineKeyboardButton(text='25', callback_data='departments:25'),
-     InlineKeyboardButton(text='30', callback_data='departments:30'),
-     InlineKeyboardButton(text='31', callback_data='departments:31')],
-    [InlineKeyboardButton(text='35', callback_data='departments:35'),
-     InlineKeyboardButton(text='39', callback_data='departments:39'),
-     InlineKeyboardButton(text='79', callback_data='departments:79'),
-     InlineKeyboardButton(text='946', callback_data='departments:946')]
+dep_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+    [
+        InlineKeyboardButton(text='Цеха', callback_data='dep_type_choise:1'),
+        InlineKeyboardButton(text='Отделы', callback_data='dep_type_choise:2'),
+    ]
 ])
 
-workshops = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text='6', callback_data='workshops:6'),
-     InlineKeyboardButton(text='9', callback_data='workshops:9'),
-     InlineKeyboardButton(text='41', callback_data='workshops:41'),
-     InlineKeyboardButton(text='43', callback_data='workshops:43')],
-    [InlineKeyboardButton(text='44', callback_data='workshops:44'),
-     InlineKeyboardButton(text='45', callback_data='workshops:45'),
-     InlineKeyboardButton(text='46', callback_data='workshops:46'),
-     InlineKeyboardButton(text='51', callback_data='workshops:51')],
-    [InlineKeyboardButton(text='52', callback_data='workshops:52'),
-     InlineKeyboardButton(text='58', callback_data='workshops:58'),
-     InlineKeyboardButton(text='59', callback_data='workshops:59'),
-     InlineKeyboardButton(text='61', callback_data='workshops:61')],
-    [InlineKeyboardButton(text='64', callback_data='workshops:64'),
-     InlineKeyboardButton(text='72', callback_data='workshops:72'),
-     InlineKeyboardButton(text='945', callback_data='workshops:945')]
-])
+async def builds_chose(dep_type_id):
+    id = int(dep_type_id)
+    builds = rq.get_bilds_List(id)
+    keyboard = InlineKeyboardBuilder()
 
-warehouses = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text='6', callback_data='warehouses:6'),
-     InlineKeyboardButton(text='14', callback_data='warehouses:14'),
-     InlineKeyboardButton(text='44', callback_data='warehouses:44'),
-     InlineKeyboardButton(text='79', callback_data='warehouses:79')]
-])
+    for id, buildId in builds.items():
+        build_name = rq.get_build_name(int(buildId))
+        keyboard.add(InlineKeyboardButton(text=build_name, callback_data=f'depart_build:{id}'))
+    
+    return keyboard.adjust(2).as_markup()
 
-others = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text='8', callback_data='others:8'),
-     InlineKeyboardButton(text='13', callback_data='others:13'),
-     InlineKeyboardButton(text='40', callback_data='others:40'),
-     InlineKeyboardButton(text='53', callback_data='others:53')],
-    [InlineKeyboardButton(text='71', callback_data='others:71'),
-     InlineKeyboardButton(text='77', callback_data='others:77'),
-     InlineKeyboardButton(text='80', callback_data='others:80')]
-])
