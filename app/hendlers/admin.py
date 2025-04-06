@@ -30,19 +30,19 @@ async def exp_type_choise(callback: CallbackQuery, state: FSMContext):
        await state.update_data(expType = exp_type)
        await callback.message.answer("За какой период выгрузить данные?", reply_markup=kb.exp_orders_kb)
 
-@router.message(st.ExportOrder.choise, F.text.lower().in_(["день", "неделя", "месяц", "год", "свой"]))
+@router.message(st.ExportOrder.choise, F.text.lower().in_(["день ☀️", "неделя 📅", "месяц 🌙", "год 🗓️", "свой"]))
 async def status_order_catalog(message: Message, state:FSMContext):
        per = message.text.lower()
        match per:
-              case "день":
+              case "день ☀️":
                      date_from = datetime.now().replace(hour=0, minute=0, second=0)
-              case "неделя":
+              case "неделя 📅":
                      date_from = datetime.now() - timedelta(days=7)
-              case "месяц":
+              case "месяц 🌙":
                      date_from = datetime.now() - timedelta(days=30)
-              case "год":
+              case "год 🗓️":
                      date_from = datetime.now() - timedelta(days=365)
-              case "свой":
+              case "свой ✏️":
                      await state.set_state(st.ExportOrder.period_set)
                      await message.answer("Введите чило в формате ДД.ММ.ГГГГ-ДД.ММ.ГГГГ")
                      return

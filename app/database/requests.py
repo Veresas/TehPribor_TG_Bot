@@ -824,7 +824,7 @@ def get_dep_build_description(dep_build_id: int) -> str:
     for entry in dep_build_cache["department_buildings"]:
         if entry["id"] == dep_build_id:
             return entry["description"] 
-    raise ValueError(f"Не найдена запись DepartmentBuilding в кеше. Атрубуты: department_id={dep_id} and building_id={build_id}")
+    raise ValueError(f"Не найдено описание для dep_build_id = {dep_build_id}")
 
 def get_dep_name(dep_id: int, isWithTypeName: False) -> str:
     deps = dep_build_cache.get("departments", [])

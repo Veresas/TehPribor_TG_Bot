@@ -8,13 +8,15 @@ main = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='📦 Экран за�
                             resize_keyboard=True,
                             input_field_placeholder='Выберите пункт меню...')
 
-choseOrderStatusList = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='Доступен'),
-                                      KeyboardButton(text='В работе')],
-                                      [KeyboardButton(text='Завершен'),
-                                      KeyboardButton(text='Все')]], 
-                            resize_keyboard=True,
-                            one_time_keyboard=True,
-                            input_field_placeholder='Выберите пункт меню...')
+choseOrderStatusList = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text='Доступен ✅'), KeyboardButton(text='В работе 🔧')],
+        [KeyboardButton(text='Завершен ✔️'), KeyboardButton(text='Все 🌐')]
+    ],
+    resize_keyboard=True,
+    one_time_keyboard=True,
+    input_field_placeholder='Выберите пункт меню...'
+)
 
 roles = InlineKeyboardMarkup(inline_keyboard= [
     [InlineKeyboardButton(text="Диспетчер", callback_data='role_disp')],
@@ -22,9 +24,10 @@ roles = InlineKeyboardMarkup(inline_keyboard= [
     [InlineKeyboardButton(text="Администратор", callback_data='role_admin')]
 ])
 
-get_number = ReplyKeyboardMarkup(keyboard=
-    [[KeyboardButton(text='Отправить номер', request_contact=True)]],
-    resize_keyboard=True)
+get_number = ReplyKeyboardMarkup(
+    keyboard=[[KeyboardButton(text='Отправить номер 📞', request_contact=True)]],
+    resize_keyboard=True
+)
 
 async def cargo_types_keyboard():
     cargo_types = await rq.get_cargo_types()
@@ -54,7 +57,6 @@ alarmOrderKey = InlineKeyboardMarkup(inline_keyboard = [
      InlineKeyboardButton(text='Нет', callback_data=f'cmd_alarm_order_cancel')]
 ])
 
-
 dateOrder = InlineKeyboardMarkup(inline_keyboard = [
     [InlineKeyboardButton(text='Сегодня', callback_data=f'date_order:today'),
      InlineKeyboardButton(text='Завтра', callback_data=f'date_order:tomorow')],
@@ -81,8 +83,6 @@ minuteOrder = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='30', callback_data='minute_date_order:30'),
      InlineKeyboardButton(text='45', callback_data='minute_date_order:45')]
 ])
-
-
 
 privateCatalogKey = InlineKeyboardMarkup(inline_keyboard = [
     [InlineKeyboardButton(text='Выполнить', callback_data=f'accept_complete_order'),
@@ -129,15 +129,14 @@ async def dispPrivetOrdersKey(orderId):
     keyboard.add(InlineKeyboardButton(text="Отменить", callback_data=f'cmd_cancel_order:{orderId}'))
     return keyboard.as_markup()
 
-
 async def order_day(tg_id):
     user_role = await rq.get_user_role(tg_id=tg_id)
     builder = ReplyKeyboardBuilder()
 
-    builder.add(KeyboardButton(text='Сегодня'))
-    builder.add(KeyboardButton(text='Завтра'))
-    if(user_role == "Диспетчер"):
-        builder.add(KeyboardButton(text='Все'))
+    builder.add(KeyboardButton(text='Сегодня ☀️'))
+    builder.add(KeyboardButton(text='Завтра 🌤️'))
+    if(user_role != "Водитель"):
+        builder.add(KeyboardButton(text='Все 🌐'))
 
     builder.adjust(2, 1)
 
@@ -148,18 +147,19 @@ async def order_day(tg_id):
     )
     return order_list_categori
 
-
-private_order_list_kb = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='Активные заказы'),
-                                      KeyboardButton(text='История заказов')]], 
-                            resize_keyboard=True,
-                            one_time_keyboard=True,
-                            input_field_placeholder='Выберите пункт меню...')
+private_order_list_kb = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text='Активные заказы 🚀'), KeyboardButton(text='История заказов 📜')]
+    ],
+    resize_keyboard=True,
+    one_time_keyboard=True,
+    input_field_placeholder='Выберите пункт меню...'
+)
 
 async def alarm_kb(orderId):
     keyboard = InlineKeyboardBuilder()
     keyboard.add(InlineKeyboardButton(text=str("Взять заказ"), callback_data=f'cmd_take_alarm_order:{orderId}'))
     return keyboard.as_markup()
-
 
 edit_order_keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
@@ -212,14 +212,16 @@ edit_order_keyboard = InlineKeyboardMarkup(inline_keyboard=[
         ],
     ])
 
-exp_orders_kb = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='День'),
-                                      KeyboardButton(text='Неделя')],
-                                      [KeyboardButton(text='Месяц'),
-                                      KeyboardButton(text="Год")],
-                                      [KeyboardButton(text="Свой")]], 
-                            resize_keyboard=True,
-                            one_time_keyboard=True,
-                            input_field_placeholder='Выберите пункт меню...')
+exp_orders_kb = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text='День ☀️'), KeyboardButton(text='Неделя 📅')],
+        [KeyboardButton(text='Месяц 🌙'), KeyboardButton(text='Год 🗓️')],
+        [KeyboardButton(text='Свой ✏️')]
+    ],
+    resize_keyboard=True,
+    one_time_keyboard=True,
+    input_field_placeholder='Выберите пункт меню...'
+)
 
 async def dayEndKb (orderId):
     keyboard = InlineKeyboardBuilder()
