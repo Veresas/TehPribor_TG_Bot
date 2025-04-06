@@ -80,8 +80,8 @@ async def add_new_order(session: AsyncSession, data):
         cargoDescription=data["cargo_description"],
         cargoTypeId=int(data["cargo_type_id"]),
         cargo_weight=float(data["cargo_weight"]),
-        depart_loc=data["depart_loc"],
-        goal_loc=data["goal_loc"],
+        depart_loc=data["depart_loc_id"],
+        goal_loc=data["goal_loc_id"],
         time=datetime.strptime(data["time"], '%H:%M %d.%m.%Y'),
         orderStatusId = 1,
         dispatcherId = disp_id.idUser,
@@ -218,8 +218,8 @@ async def form_order(order, cargo_type, status=None, witoutStatus=False) -> str:
         f"📝 Описание: {order.cargoDescription}",
         f"⚖️ Вес: {order.cargo_weight} кг",
         f"📌 Тип: {cargo_type_name}",
-        f"📍 Отправление: {order.depart_loc}",
-        f"🏁 Доставка: {order.goal_loc}",
+        f"📍 Отправление: {get_dep_build_input(order.depart_loc)}",
+        f"🏁 Доставка: {get_dep_build_input(order.goal_loc)}",
         f"🕒 Дата/время: {order.time.strftime('%d.%m.%Y %H:%M')}",
     ]
 
@@ -820,11 +820,23 @@ def get_dep_build_id(dep_id: int, build_id: int) -> int:
             return entry["id"] 
     raise ValueError(f"Не найдена запись DepartmentBuilding в кеше. Атрубуты: department_id={dep_id} and building_id={build_id}")
 
-def get_dep_name(dep_id: int) -> str:
+def get_dep_build_description(dep_build_id: int) -> str:
+    for entry in dep_build_cache["department_buildings"]:
+        if entry["id"] == dep_build_id:
+            return entry["description"] 
+    raise ValueError(f"Не найдена запись DepartmentBuilding в кеше. Атрубуты: department_id={dep_id} and building_id={build_id}")
+
+def get_dep_name(dep_id: int, isWithTypeName: False) -> str:
     deps = dep_build_cache.get("departments", [])
+    res = ''
     for dep in deps:
         if dep["idDepartment"] == dep_id:
-            return dep["departmentName"]
+            if isWithTypeName:
+                match dep["typeId"]:
+                    case 1: res = "Цех "
+                    case 2: res = "Отдел "
+                    case _: res = "Тип не определен. Номер: "
+            return res + dep["departmentName"]
     raise ValueError(f"Не найдена запись Department в кеше. Атрибут: id={dep_id}")
 
 def get_build_name(build_id: int) -> str:
@@ -834,13 +846,23 @@ def get_build_name(build_id: int) -> str:
             return buld["buildingName"]
     raise ValueError(f"Не найдена запись Building в кеше. Атрибут: id={build_id}")
 
-async def get_bilds_List(dep_id: int):
-    buildsId = {}
-    for entry in dep_build_cache["department_buildings"]:
-        if entry["department_id"] == dep_id:
-            buildsId[entry["id"]] = entry["building_id"]
-    return buildsId
+def get_bilds_List(dep_id: int) -> List[dict]:
+    return [{"id": entry["id"], "building_id": entry["building_id"]}
+            for entry in dep_build_cache["department_buildings"]
+            if entry["department_id"] == dep_id]
 
+def get_dep_List(dep_type_id: int) -> List[dict]:
+    departments = dep_build_cache.get("departments", [])
+    return [{'id': dep["idDepartment"], 'name': dep["departmentName"]}
+            for dep in departments if dep["typeId"] == dep_type_id]
+
+def get_dep_build_input(dep_build_id: int) -> str:
+    for entry in dep_build_cache["department_buildings"]:
+        if entry["id"] == dep_build_id:
+            dep_name = get_dep_name(entry["department_id"], isWithTypeName=True)
+            build_name = get_build_name(entry["building_id"])
+            res = f'{dep_name}, корпус {build_name}, {entry["description"]}'
+            return res
 @connection
 async def dep_build_set(session: AsyncSession):
     deps = list(await session.scalars(select(tb.Department)))
@@ -849,14 +871,14 @@ async def dep_build_set(session: AsyncSession):
 
     dep_build_cache.clear()
     dep_build_cache["department_buildings"] = [
-        {"id": db.idDepartmentBuilding, "department_id": db.departmentId, "building_id": db.buildingId, "description": db.description}
+        {"id": db.department_building_id, "department_id": db.department_id, "building_id": db.building_id, "description": db.description}
         for db in dep_build
     ]
     dep_build_cache["departments"] = [
-        {"idDepartment": dep.idDepartment, "departmentName": dep.departmentName, "typeId": dep.departmentTypeId}
+        {"idDepartment": dep.department_id, "departmentName": dep.department_name, "typeId": dep.department_type_id}
         for dep in deps
     ]
     dep_build_cache["buildings"] = [
-        {"idBuilding": b.idBuilding, "buildingName": b.buildingName}
+        {"idBuilding": b.building_id, "buildingName": b.building_name}
         for b in build
     ]

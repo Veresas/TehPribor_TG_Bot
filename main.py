@@ -37,6 +37,16 @@ async def on_startup():
         args=[bot]
     )
 
+    scheduler.add_job(
+        rq.dep_build_set,
+        'cron',
+        hour=0,
+        minute=0,
+        second=0,
+        timezone='Europe/Moscow'
+    )
+
+    await rq.dep_build_set()
     scheduler.start()
 
 async def on_shutdown():

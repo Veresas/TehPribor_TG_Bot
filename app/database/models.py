@@ -72,8 +72,8 @@ class Order (Base):
     cargoDescription: Mapped[str] = mapped_column(Text())
     cargoTypeId: Mapped[int] = mapped_column(ForeignKey('cargoTypes.idCargoType'))
     cargo_weight: Mapped[float] = mapped_column(Float)
-    depart_loc: Mapped[str] = mapped_column(String(20))
-    goal_loc: Mapped[str] = mapped_column(String(20))
+    depart_loc: Mapped[int] = mapped_column(ForeignKey('department_buildings.department_building_id'))
+    goal_loc: Mapped[int] = mapped_column(ForeignKey('department_buildings.department_building_id'))
     time: Mapped[DateTime] = mapped_column(DateTime())
     orderStatusId: Mapped[int] = mapped_column(ForeignKey('orderStatuses.idOrderStatus'))
     dispatcherId: Mapped[int] = mapped_column(ForeignKey('users.idUser'))
@@ -87,7 +87,7 @@ class Order (Base):
     create_order_time: Mapped[DateTime] = mapped_column(DateTime())
     isUrgent: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     isPostponed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    driverRate: Mapped[int] = mapped_column(default=None)
+    driverRate: Mapped[int| None] = mapped_column(default=None)
     
     cargoType: Mapped['CargoType'] = relationship(back_populates='orders')
     orderStatus: Mapped['OrderStatus'] = relationship(back_populates='orders')
@@ -99,6 +99,8 @@ class Order (Base):
         back_populates='driver',
         foreign_keys=[driverId]
     )
+    depart_loc_ref: Mapped['DepartmentBuilding'] = relationship(foreign_keys=[depart_loc])
+    goal_loc_ref: Mapped['DepartmentBuilding'] = relationship(foreign_keys=[goal_loc])
 
 class CargoType (Base):
     __tablename__='cargoTypes'
@@ -120,8 +122,8 @@ class OrderStatus (Base):
 class DepartmentType(Base):
     __tablename__ = 'department_types'
 
-    idDepartmentType: Mapped[int] = mapped_column(primary_key=True)
-    departmentTypeName: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    department_type_id: Mapped[int] = mapped_column(primary_key=True)
+    department_type_name: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
 
     departments: Mapped[list['Department']] = relationship(back_populates='departmentType')
 
@@ -129,48 +131,48 @@ class DepartmentType(Base):
 class Department(Base):
     __tablename__ = 'departments'
 
-    idDepartment: Mapped[int] = mapped_column(primary_key=True)
-    departmentName: Mapped[str] = mapped_column(String(255), nullable=False)
-    departmentTypeId: Mapped[int] = mapped_column(ForeignKey('department_types.idDepartmentType'))
+    department_id: Mapped[int] = mapped_column(primary_key=True)
+    department_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    department_type_id: Mapped[int] = mapped_column(ForeignKey('department_types.department_type_id'))
 
     departmentType: Mapped['DepartmentType'] = relationship(back_populates='departments')
     departmentBuildings: Mapped[list['DepartmentBuilding']] = relationship(back_populates='department')
 
     # Добавление индекса idx_departments_department_name
     __table_args__ = (
-        Index('idx_departments_department_name', 'departmentName'),
+        Index('idx_departments_department_name', 'department_name'),
     )
 
 # Модель для таблицы buildings
 class Building(Base):
     __tablename__ = 'buildings'
 
-    idBuilding: Mapped[int] = mapped_column(primary_key=True)
-    buildingName: Mapped[str] = mapped_column(String(255), nullable=False)
+    building_id: Mapped[int] = mapped_column(primary_key=True)
+    building_name: Mapped[str] = mapped_column(String(255), nullable=False)
 
     departmentBuildings: Mapped[list['DepartmentBuilding']] = relationship(back_populates='building')
 
     # Добавление индекса idx_buildings_building_name
     __table_args__ = (
-        Index('idx_buildings_building_name', 'buildingName'),
+        Index('idx_buildings_building_name', 'building_name'),
     )
 
 # Модель для таблицы department_buildings
 class DepartmentBuilding(Base):
     __tablename__ = 'department_buildings'
 
-    idDepartmentBuilding: Mapped[int] = mapped_column(primary_key=True)
-    departmentId: Mapped[int] = mapped_column(ForeignKey('departments.idDepartment'))
-    buildingId: Mapped[int] = mapped_column(ForeignKey('buildings.idBuilding'))
+    department_building_id: Mapped[int] = mapped_column(primary_key=True)
+    department_id: Mapped[int] = mapped_column(ForeignKey('departments.department_id'))
+    building_id: Mapped[int] = mapped_column(ForeignKey('buildings.building_id'))
     description: Mapped[str] = mapped_column(String(255), nullable=True)
 
     department: Mapped['Department'] = relationship(back_populates='departmentBuildings')
     building: Mapped['Building'] = relationship(back_populates='departmentBuildings')
 
     __table_args__ = (
-        UniqueConstraint('departmentId', 'buildingId', name='department_buildings_department_id_building_id_key'),
-        Index('idx_department_buildings_department_id', 'departmentId'),
-        Index('idx_department_buildings_building_id', 'buildingId'),
+        UniqueConstraint('department_id', 'building_id', name='department_buildings_department_id_building_id_key'),
+        Index('idx_department_buildings_department_id', 'department_id'),
+        Index('idx_department_buildings_building_id', 'building_id'),
     )
 
 async def async_main():

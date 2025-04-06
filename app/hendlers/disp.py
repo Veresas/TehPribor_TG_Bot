@@ -48,24 +48,35 @@ async def order_cargo_type(callback: CallbackQuery, state: FSMContext):
 @router.message(st.Order.cargo_weight)
 async def order_cargo_weight(message: Message, state: FSMContext):
        if valid.valid_weight(message.text):
-              await state.update_data(cargo_weight = float(message.text))
-              await state.set_state(st.Order.depart_loc)
-              await message.answer('Введите номер цеха/корпуса отправления')
+              await state.update_data(cargo_weight = float(message.text), next_state = st.Order.depart_loc)
+              await state.set_state(st.DepChoise.dep_choise)
+              await message.answer("Выберете категорию точки отправления", reply_markup= kb.dep_keyboard)
        else:
               await message.answer('Некорректные данные. Повторите попытку. Если число дробное - введите его через точку')
        
-@router.message(st.Order.depart_loc)
-async def order_depart_loc(message: Message, state: FSMContext):
-       await state.update_data(depart_loc = message.text)
-       await state.set_state(st.Order.goal_loc)
-       await message.answer('Введите номер цеха/корпуса назначения')
+@router.callback_query(st.Order.depart_loc, F.data.startswith('depart_build'))
+async def order_depart_loc(callback: CallbackQuery, state: FSMContext):
+       dep_buld_id = callback.data.split(':')[1]
+       dep_buld_id = int(dep_buld_id)
+       depart = rq.get_dep_build_input(dep_buld_id)
+       await callback.answer()
+       await state.update_data(depart_loc = depart, depart_loc_id = dep_buld_id, next_state = st.Order.goal_loc)
+       await state.set_state(st.DepChoise.dep_choise)
+
+       await callback.message.edit_text(f"Корпус отправки: {depart}")
+       await callback.message.answer("Выберете категорию точки доставки", reply_markup= kb.dep_keyboard)
 
 
-@router.message(st.Order.goal_loc)
-async def order_goal_loc(message: Message, state: FSMContext):    
-       await state.update_data(goal_loc = message.text)
+@router.callback_query(st.Order.goal_loc, F.data.startswith('depart_build'))
+async def order_goal_loc(callback: CallbackQuery, state: FSMContext): 
+       dep_buld_id = callback.data.split(':')[1]
+       dep_buld_id = int(dep_buld_id)
+       goal = rq.get_dep_build_input(dep_buld_id)
+       await callback.answer()
+       await state.update_data(goal_loc = goal, goal_loc_id = dep_buld_id)
        await state.set_state(st.Order.photo)
-       await message.answer('Хотите ли вы добавить фото к грузу?', reply_markup= kb.photoQuestKey)
+       await callback.message.edit_text(f"Корпус доставки: {goal}")
+       await callback.message.answer('Хотите ли вы добавить фото к грузу?', reply_markup= kb.photoQuestKey)
 
 
 @router.callback_query(st.Order.photo, F.data == ("cmd_photo_quest_accept"))
@@ -90,8 +101,6 @@ async def get_order_photo(message: Message, state: FSMContext):
 @router.callback_query(st.Order.alarm, F.data == "cmd_alarm_order_accept")
 async def accept_alarm_order(calback: CallbackQuery, state: FSMContext):
        await calback.answer()
-       print("Устанвка срочности заказа")
-
        await state.update_data(isUrgent= True)
        await state.set_state(st.Order.time)
        await calback.message.answer('Выберите день', reply_markup= kb.dateOrder)
@@ -146,7 +155,6 @@ async def new_order_accept(callback: CallbackQuery, state: FSMContext):
        data = await state.get_data() 
        order_id = await rq.add_new_order(data=data)
        if data["isUrgent"]:
-              print("Активация функции оповищения")
               await rq.alarm_for_drivers(orderId=order_id, bot= callback.bot)
        await state.clear()
        await callback.answer()
@@ -197,12 +205,14 @@ async def select_field_to_edit(callback: CallbackQuery, state: FSMContext):
             await callback.message.answer("Выберите новый тип груза:", reply_markup=await kb.cargo_types_keyboard())
 
         case 'departure':
-            await state.set_state(st.EditOrder.edit_depart_loc)
-            await callback.message.answer("Введите новый номер цеха/корпуса отправления:")
+            await state.set_state(st.DepChoise.dep_choise)
+            await state.update_data(next_state = st.EditOrder.edit_depart_loc)
+            await callback.message.answer("Выберете категорию точки отправления", reply_markup= kb.dep_keyboard)
 
         case 'delivery':
-            await state.set_state(st.EditOrder.edit_goal_loc)
-            await callback.message.answer("Введите новый номер цеха/корпуса назначения:")
+            await state.set_state(st.DepChoise.dep_choise)
+            await state.update_data(next_state = st.EditOrder.edit_goal_loc)
+            await callback.message.answer("Выберете категорию точки назначения", reply_markup= kb.dep_keyboard)
 
         case 'time':
             await state.set_state(st.EditOrder.edit_time)
@@ -254,22 +264,24 @@ async def process_edit_cargo_type(callback: CallbackQuery, state: FSMContext):
     await callback.message.answer("Тип груза обновлен.")
     await callback.answer()
 
-@router.message(st.EditOrder.edit_depart_loc)
-async def process_edit_depart_loc(message: Message, state: FSMContext):
-       new_depart_loc = message.text
-
-       await state.update_data(edit_depart_loc=new_depart_loc)
+@router.callback_query(st.EditOrder.edit_depart_loc, F.data.startswith('depart_build'))
+async def process_edit_depart_loc(callback: CallbackQuery, state: FSMContext):
+       dep_buld_id = callback.data.split(':')[1]
+       dep_buld_id = int(dep_buld_id)
+       await callback.answer()
+       await state.update_data(edit_depart_loc=dep_buld_id)
        await state.set_state(st.EditOrder.select_field)
-       await message.answer("Место отправления обновлено.")
+       await callback.message.answer("Место отправления обновлено.")
 
 
-@router.message(st.EditOrder.edit_goal_loc)
-async def process_edit_goal_loc(message: Message, state: FSMContext):
-       new_goal_loc = message.text
-
-       await state.update_data(edit_goal_loc=new_goal_loc)  
+@router.callback_query(st.EditOrder.edit_goal_loc, F.data.startswith('depart_build'))
+async def process_edit_goal_loc(callback: CallbackQuery, state: FSMContext):
+       dep_buld_id = callback.data.split(':')[1]
+       dep_buld_id = int(dep_buld_id)
+       await callback.answer()
+       await state.update_data(edit_goal_loc=dep_buld_id)  
        await state.set_state(st.EditOrder.select_field)  
-       await message.answer("Место доставки обновлено.")
+       await callback.message.answer("Место доставки обновлено.")
 
 
 @router.callback_query(st.EditOrder.edit_time, F.data.startswith("date_order"))
@@ -369,3 +381,17 @@ async def set_rate(callback: CallbackQuery):
        except Exception as e:
               await callback.message.answer("Ошибка добавления оценки. Попробуйте позже")
 
+@router.callback_query(st.DepChoise.dep_choise, F.data.startswith('dep_type_choise'))
+async def dep_choise(callbacke: CallbackQuery, state: FSMContext):
+       dep_type = callbacke.data.split(':')[1]
+       await callbacke.answer()
+       await state.set_state(st.DepChoise.build_choise)
+       await callbacke.message.edit_text('Выберите номер подразделения', reply_markup= kb.dep_chose(int(dep_type)))
+
+@router.callback_query(st.DepChoise.build_choise, F.data.startswith('depart'))
+async def build_choise(callbacke: CallbackQuery, state: FSMContext):
+       dep_id = callbacke.data.split(':')[1]
+       data = await state.get_data()
+       await callbacke.answer()
+       await state.set_state(data["next_state"])
+       await callbacke.message.edit_text('Выберите корпус', reply_markup= kb.build_chose(int(dep_id)))

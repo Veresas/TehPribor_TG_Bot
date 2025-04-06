@@ -249,14 +249,29 @@ dep_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     ]
 ])
 
-async def builds_chose(dep_type_id):
-    id = int(dep_type_id)
+def dep_chose(dep_type_id):
+    deps = rq.get_dep_List(dep_type_id)
+
+    keyboard = InlineKeyboardBuilder()
+    if not deps:
+        keyboard.add(InlineKeyboardButton(text="Нет отделов", callback_data="none"))
+    else:
+        for dep in deps:
+            keyboard.add(InlineKeyboardButton(text=dep["name"], callback_data=f'depart:{dep["id"]}'))
+    
+    return keyboard.adjust(2).as_markup()
+
+def build_chose(dep_id):
+    id = int(dep_id)
     builds = rq.get_bilds_List(id)
     keyboard = InlineKeyboardBuilder()
 
-    for id, buildId in builds.items():
-        build_name = rq.get_build_name(int(buildId))
-        keyboard.add(InlineKeyboardButton(text=build_name, callback_data=f'depart_build:{id}'))
+    if not builds:
+        keyboard.add(InlineKeyboardButton(text="Нет корпусов", callback_data="none"))
+    else:
+        for build in builds:
+            build_name = rq.get_build_name(int(build["building_id"]))
+            keyboard.add(InlineKeyboardButton(text=build_name, callback_data=f'depart_build:{build["id"]}'))
     
     return keyboard.adjust(2).as_markup()
 

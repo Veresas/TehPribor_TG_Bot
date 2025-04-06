@@ -52,3 +52,10 @@ class PostponedOrder(StatesGroup):
 class ChangeRole(StatesGroup):
        start = State()
        pas = State()
+
+class DepChoise(StatesGroup):
+       dep_choise = State()
+       build_choise = State()
+
+class Test(StatesGroup):
+       start = State()

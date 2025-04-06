@@ -450,6 +450,7 @@ async def get_map(message: Message):
 
 @router.message(Command('change_role'))
 async def cahnge_role(message: Message, state: FSMContext):
+       await state.clear()
        await state.set_state(st.ChangeRole.start)
        await state.update_data(tg_id = message.from_user.id)
        await message.answer('Выберите роль. Для отмены регистрации введите /cancel', reply_markup = kb.roles)  
@@ -519,3 +520,16 @@ async def cmd_help(message: Message):
                      )
 
        await message.answer(mes)
+
+"""
+@router.message(Command('test'))
+async def cmd_test(message: Message, state: FSMContext):
+       await state.set_state(st.Order.cargo_weight)
+       
+@router.callback_query(st.Test.start )
+async def test_dep(callbacke: CallbackQuery, state: FSMContext):
+       dep_buld_id = callbacke.data.split(':')[1]
+       await callbacke.answer()
+       dep_description = rq.get_dep_build_description(int(dep_buld_id))
+       await callbacke.message.answer(f"Связка зданий id = {dep_description}")
+"""
