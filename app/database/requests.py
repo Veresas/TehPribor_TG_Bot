@@ -615,6 +615,8 @@ async def export_diagrama(session,
         .options(joinedload(tb.Order.executor))
         .where(and_(
             tb.Order.orderStatusId == 3,
+            tb.Order.completion_time.isnot(None),
+            tb.Order.pickup_time.isnot(None),
             tb.Order.completion_time >= date_from,
             tb.Order.completion_time <= date_to
         ))
