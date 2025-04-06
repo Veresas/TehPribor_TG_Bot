@@ -882,3 +882,28 @@ async def dep_build_set(session: AsyncSession):
         {"idBuilding": b.building_id, "buildingName": b.building_name}
         for b in build
     ]
+
+
+@connection
+async def get_cargo_type_output(session: AsyncSession):
+    cargo_types = await session.scalars(select(tb.CargoType).order_by(tb.CargoType.idCargoType))
+    cargo_type_list: List[tb.CargoType] = list(cargo_types)
+    mes = 'Тип груза - коэфицент: \n\n'
+    for type in cargo_type_list:
+        mes = mes + f'{type.idCargoType}: {type.cargoTypeName} - {type.ratio} \n'
+    
+    return len(cargo_type_list), mes
+
+@connection
+async def update_ratio(session: AsyncSession, id, ratio):
+    updates ={
+        "ratio": ratio,
+    }
+
+    stmt = (
+        update(tb.CargoType)
+        .where(tb.CargoType.idCargoType == int(id))
+        .values(**updates)
+    )
+
+    await session.execute(stmt)

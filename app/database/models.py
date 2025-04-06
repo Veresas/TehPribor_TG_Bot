@@ -106,7 +106,8 @@ class CargoType (Base):
     __tablename__='cargoTypes'
 
     idCargoType: Mapped[int] = mapped_column(primary_key=True)
-    cargoTypeName: Mapped[str]=  mapped_column(String(50))
+    cargoTypeName: Mapped[str] =  mapped_column(String(50))
+    ratio: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
 
     orders: Mapped[list['Order']] = relationship(back_populates='cargoType')
 

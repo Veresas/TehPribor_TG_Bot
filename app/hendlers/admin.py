@@ -86,3 +86,34 @@ async def make_export(message: Message, state:FSMContext, date_from, date_to = N
                      await message.answer(f"Произошла ошибка при экспорте. Попробуйте позже")
 #endregion
 
+@router.message(Command('cargo_ratios'))
+async def show_ratio(message: Message, state: FSMContext):
+       role = await rq.get_user_role(tg_id=message.from_user.id)
+       if (role == "Администратор"):
+              count, mes = await rq.get_cargo_type_output()
+              await state.set_state(st.ChangRatio.start)
+              await message.answer(mes, reply_markup=kb.ratio_keyboard(count))
+       else:
+              await message.answer("У вас не хватает прав доступа для использования этой команды")
+
+@router.callback_query(st.ChangRatio.start, F.data.startswith("change_ratio:"))
+async def change_ratio(callback: CallbackQuery, state: FSMContext):
+       id_type = callback.data.split(':')[1]
+       await callback.answer()
+       await state.update_data(id_type = id_type)
+       await state.set_state(st.ChangRatio.set_new_ratio)
+       await callback.message.answer(f"Вы выбрали тип под номером: {id_type}. Введите новое значение коэфицента через точку.")
+
+@router.message(st.ChangRatio.set_new_ratio)
+async def new_ratio(message: Message, state:FSMContext):
+       value = message.text
+       data = await state.get_data()
+       try:
+              ratio = float(value)
+              await rq.update_ratio(id=data["id_type"], ratio=ratio)
+              await message.answer("Коэффициент успешно обновлен")
+              await state.clear()
+       except ValueError:
+              await message.answer("Неверный формат. Попробуйте еще раз")
+       except Exception as e:
+              await message.answer(f"При обновлении коэффициента произошла ошибка. Попробуйте позже")

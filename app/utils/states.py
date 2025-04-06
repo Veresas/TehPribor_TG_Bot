@@ -57,5 +57,10 @@ class DepChoise(StatesGroup):
        dep_choise = State()
        build_choise = State()
 
+class ChangRatio(StatesGroup):
+       start = State()
+       set_new_ratio = State()
+       
 class Test(StatesGroup):
        start = State()
+       

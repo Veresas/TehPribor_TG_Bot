@@ -277,3 +277,10 @@ def build_chose(dep_id):
     
     return keyboard.adjust(2).as_markup()
 
+def ratio_keyboard(count_items: int):
+    keyboard = InlineKeyboardBuilder()
+
+    for i in range(1, count_items + 1):
+        keyboard.add(InlineKeyboardButton(text=str(i), callback_data=f'change_ratio:{i}'))
+    
+    return keyboard.adjust(2).as_markup()
