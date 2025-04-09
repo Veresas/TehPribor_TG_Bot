@@ -284,3 +284,17 @@ def ratio_keyboard(count_items: int):
         keyboard.add(InlineKeyboardButton(text=str(i), callback_data=f'change_ratio:{i}'))
     
     return keyboard.adjust(2).as_markup()
+
+def ratio_type_keyboard():
+    keyboard = InlineKeyboardBuilder()
+    keyboard.add(InlineKeyboardButton(text="Тип груза", callback_data="ratio_type:cargo"))
+    keyboard.add(InlineKeyboardButton(text="Время", callback_data="ratio_type:time"))
+    keyboard.add(InlineKeyboardButton(text="Вес", callback_data="ratio_type:weight"))
+    return keyboard.adjust(1).as_markup()
+
+def generic_coeff_keyboard(items: list, key_prefix: str):
+    keyboard = InlineKeyboardBuilder()
+    for item in items:
+        display = f"{item['label']} → {item['coefficent']}"
+        keyboard.add(InlineKeyboardButton(text=display, callback_data=f"change_coeff:{key_prefix}:{item['id']}"))
+    return keyboard.adjust(1).as_markup()

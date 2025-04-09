@@ -58,9 +58,13 @@ class DepChoise(StatesGroup):
        build_choise = State()
 
 class ChangRatio(StatesGroup):
-       start = State()
+       choose_type = State()
+       select_cargo_type= State()
+       select_time = State()
+       select_weight = State()
        set_new_ratio = State()
+       set_generic_ratio = State()
        
 class Test(StatesGroup):
        start = State()
-       
+

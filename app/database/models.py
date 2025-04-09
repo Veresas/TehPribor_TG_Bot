@@ -176,6 +176,29 @@ class DepartmentBuilding(Base):
         Index('idx_department_buildings_building_id', 'building_id'),
     )
 
+
+class TimeCoeff(Base):
+    __tablename__ = "time_coefficent"
+
+    time_coefficent_id: Mapped[int] = mapped_column(primary_key=True)
+    value: Mapped[int] = mapped_column()
+    coefficent: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
+
+    __table_args__ = (
+        Index('ix_time_coefficent_value', 'value'),
+    )
+
+class WeightCoeff(Base):
+    __tablename__ = "weight_coefficent"
+    
+    weight_coefficent_id: Mapped[int] = mapped_column(primary_key=True)
+    value: Mapped[float] = mapped_column(Float)
+    coefficent: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
+    
+    __table_args__ = (
+        Index('ix_weight_coefficent_value', 'value'),
+    )
+
 async def async_main():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

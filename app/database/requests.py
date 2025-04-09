@@ -865,8 +865,8 @@ def get_dep_build_input(dep_build_id: int) -> str:
             return res
 @connection
 async def dep_build_set(session: AsyncSession):
-    deps = list(await session.scalars(select(tb.Department)))
-    build = list(await session.scalars(select(tb.Building)))
+    deps = list(await session.scalars(select(tb.Department).order_by(tb.Department.department_name)))
+    build = list(await session.scalars(select(tb.Building).order_by(tb.Building.building_name)))
     dep_build = list(await session.scalars(select(tb.DepartmentBuilding)))
 
     dep_build_cache.clear()
@@ -883,16 +883,35 @@ async def dep_build_set(session: AsyncSession):
         for b in build
     ]
 
+@connection
+async def get_cargo_type_list(session: AsyncSession):
+    rows = await session.scalars(select(tb.CargoType).order_by(tb.CargoType.idCargoType))
+    return [{"id": row.idCargoType, "label": row.cargoTypeName, "coefficent": row.ratio} for row in rows]
 
 @connection
-async def get_cargo_type_output(session: AsyncSession):
-    cargo_types = await session.scalars(select(tb.CargoType).order_by(tb.CargoType.idCargoType))
-    cargo_type_list: List[tb.CargoType] = list(cargo_types)
-    mes = 'Тип груза - коэфицент: \n\n'
-    for type in cargo_type_list:
-        mes = mes + f'{type.idCargoType}: {type.cargoTypeName} - {type.ratio} \n'
-    
-    return len(cargo_type_list), mes
+async def update_ratio(session: AsyncSession, id, ratio):
+    stmt = update(tb.CargoType).where(tb.CargoType.idCargoType == id).values(ratio=ratio)
+    await session.execute(stmt)
+
+@connection
+async def get_time_coeffs(session: AsyncSession):
+    rows = await session.scalars(select(tb.TimeCoeff).order_by(tb.TimeCoeff.value))
+    return [{"id": row.time_coefficent_id, "label": f"{row.value} мин", "coefficent": row.coefficent} for row in rows]
+
+@connection
+async def update_time_coeff(session: AsyncSession, id: int, coeff: float):
+    stmt = update(tb.TimeCoeff).where(tb.TimeCoeff.time_coefficent_id == id).values(coefficent=coeff)
+    await session.execute(stmt)
+
+@connection
+async def get_weight_coeffs(session: AsyncSession):
+    rows = await session.scalars(select(tb.WeightCoeff).order_by(tb.WeightCoeff.value))
+    return [{"id": row.weight_coefficent_id, "label": f"{row.value} кг", "coefficent": row.coefficent} for row in rows]
+
+@connection
+async def update_weight_coeff(session: AsyncSession, id: int, coeff: float):
+    stmt = update(tb.WeightCoeff).where(tb.WeightCoeff.weight_coefficent_id == id).values(coefficent=coeff)
+    await session.execute(stmt)
 
 @connection
 async def update_ratio(session: AsyncSession, id, ratio):
