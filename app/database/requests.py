@@ -647,6 +647,8 @@ async def export_diagrama(session,
     cargo_counts = df["Группа груза"].value_counts()
 
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(17, 12), height_ratios=[1, 1])
+    period_str = f"Период: {date_from.strftime('%d.%m.%Y')} — {date_to.strftime('%d.%m.%Y')}"
+    fig.suptitle(period_str, fontsize=16, fontweight='bold')
 
     plt.subplots_adjust(left=0.1, right=0.65, top=0.95, bottom=0.1, hspace=0.3)
 
@@ -926,3 +928,26 @@ async def update_ratio(session: AsyncSession, id, ratio):
     )
 
     await session.execute(stmt)
+
+@connection
+async def add_ratio(session: AsyncSession, coeff_type, value):
+    match coeff_type:
+        case "cargo":
+            data_save = tb.CargoType(
+                cargoTypeName = value,
+                ratio = 1.0,
+            )
+
+        case "time":
+            data_save = tb.TimeCoeff(
+                value = value,
+                coefficent = 1.0,
+            )
+
+        case "weight":
+            data_save = tb.WeightCoeff(
+                value = value,
+                coefficent = 1.0,
+            )
+            
+    session.add(data_save)

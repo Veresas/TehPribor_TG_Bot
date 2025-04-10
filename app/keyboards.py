@@ -297,4 +297,5 @@ def generic_coeff_keyboard(items: list, key_prefix: str):
     for item in items:
         display = f"{item['label']} → {item['coefficent']}"
         keyboard.add(InlineKeyboardButton(text=display, callback_data=f"change_coeff:{key_prefix}:{item['id']}"))
+    keyboard.add(InlineKeyboardButton(text="Добавить новый", callback_data=f"add_coeff:{key_prefix}"))
     return keyboard.adjust(1).as_markup()

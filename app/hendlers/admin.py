@@ -132,7 +132,54 @@ async def change_any_ratio(callback: CallbackQuery, state: FSMContext):
        await state.set_state(st.ChangRatio.set_generic_ratio)
        await callback.message.answer("Введите новое значение коэффициента:")
 
-router.message(st.ChangRatio.set_generic_ratio)
+@router.callback_query(StateFilter(st.ChangRatio.select_cargo_type,
+                                   st.ChangRatio.select_time,
+                                   st.ChangRatio.select_weight ) , F.data.startswith("add_coeff:"))
+async def add_any_ratio(callback: CallbackQuery, state: FSMContext):
+       _, prefix = callback.data.split(":")
+       await callback.answer()
+       await state.update_data(coeff_type=prefix)
+       await state.set_state(st.ChangRatio.set_group_ratio)
+       match prefix:
+              case "cargo":
+                     await callback.message.answer("Введите новое значение для группы груза (только слова):")
+              case "time":
+                     await callback.message.answer("Введите новое значение времени в минутах (только число):")
+              case "weight":
+                     await callback.message.answer("Введите новое значение веса в килограммах (только число):")
+
+
+@router.message(st.ChangRatio.set_group_ratio)
+async def set_new_generic_ratio(message: Message, state: FSMContext):
+       data = await state.get_data()
+       coeff_type = data['coeff_type']
+       user_input = message.text.strip()
+
+       match coeff_type:
+              case "cargo":
+                     if not user_input.isalpha():
+                            await message.answer("Ошибка: Введите только текст без чисел.")
+                            return
+                     await rq.add_ratio(coeff_type=coeff_type, value=user_input)
+                     await message.answer(f"Грузовая группа '{user_input}' успешно добавлена.")
+              
+              case "time":
+                     if not user_input.isdigit():
+                            await message.answer("Ошибка: Введите только число (минуты).")
+                            return
+                     await rq.add_ratio(coeff_type=coeff_type, value=int(user_input))
+                     await message.answer(f"Временной коэффициент '{user_input} мин' успешно добавлен.")
+              
+              case "weight":
+                     if not user_input.isdigit():
+                            await message.answer("Ошибка: Введите только число (в кг).")
+                            return
+                     await rq.add_ratio(coeff_type=coeff_type, value=int(user_input))
+                     await message.answer(f"Весовой коэффициент '{user_input} кг' успешно добавлен.")
+       
+       await state.clear()
+
+@router.message(st.ChangRatio.set_generic_ratio)
 async def set_new_generic_ratio(message: Message, state: FSMContext):
        try:
               value = float(message.text)

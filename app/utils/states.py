@@ -64,6 +64,8 @@ class ChangRatio(StatesGroup):
        select_weight = State()
        set_new_ratio = State()
        set_generic_ratio = State()
+       set_group_ratio = State()
+       set_value_ratio = State()
        
 class Test(StatesGroup):
        start = State()
