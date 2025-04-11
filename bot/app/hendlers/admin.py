@@ -95,32 +95,36 @@ async def show_ratio(message: Message, state: FSMContext):
        else:
               await message.answer("У вас не хватает прав доступа для использования этой команды")
 
-@router.callback_query(st.ChangRatio.choose_type, F.data.startswith("ratio_type:"))
+@router.callback_query(StateFilter(st.ChangRatio.choose_type,
+                                   st.ChangRatio.select_cargo_type,
+                                   st.ChangRatio.select_time,
+                                   st.ChangRatio.select_weight), F.data.startswith("ratio_type:"))
 async def select_ratio_type(callback: CallbackQuery, state: FSMContext):
        _, ratio_type = callback.data.split(":")
        await callback.answer()
-       await state.update_data(ratio_type=ratio_type)
+       data = await state.get_data()
+       old_msg_id = data.get("id_mes")
 
+       if old_msg_id:
+              try:
+                     await callback.bot.delete_message(chat_id=callback.message.chat.id, message_id=old_msg_id)
+              except Exception:
+                     pass
+       await state.update_data(ratio_type=ratio_type)
        if ratio_type == "cargo":
               items = await rq.get_cargo_type_list()
               await state.set_state(st.ChangRatio.select_cargo_type)
-              await callback.message.answer("Выберите тип груза:", reply_markup=kb.generic_coeff_keyboard(items, "cargo"))
+              new_mes = await callback.message.answer("Выберите тип груза:", reply_markup=kb.generic_coeff_keyboard(items, "cargo"))
        elif ratio_type == "time":
               items = await rq.get_time_coeffs()
               await state.set_state(st.ChangRatio.select_time)
-              await callback.message.answer("Выберите значение времени:", reply_markup=kb.generic_coeff_keyboard(items, "time"))
+              new_mes = await callback.message.answer("Выберите значение времени:", reply_markup=kb.generic_coeff_keyboard(items, "time"))
        elif ratio_type == "weight":
               items = await rq.get_weight_coeffs()
               await state.set_state(st.ChangRatio.select_weight)
-              await callback.message.answer("Выберите значение веса:", reply_markup=kb.generic_coeff_keyboard(items, "weight"))
+              new_mes = await callback.message.answer("Выберите значение веса:", reply_markup=kb.generic_coeff_keyboard(items, "weight"))
 
-@router.callback_query(st.ChangRatio.select_cargo_type, F.data.startswith("change_ratio:"))
-async def change_ratio(callback: CallbackQuery, state: FSMContext):
-       id_type = callback.data.split(':')[1]
-       await callback.answer()
-       await state.update_data(id_type = id_type)
-       await state.set_state(st.ChangRatio.set_new_ratio)
-       await callback.message.answer(f"Вы выбрали тип под номером: {id_type}. Введите новое значение коэфицента через точку.")
+       await state.update_data(id_mes = new_mes.message_id)
 
 @router.callback_query(StateFilter(st.ChangRatio.select_cargo_type,
                                    st.ChangRatio.select_time,
