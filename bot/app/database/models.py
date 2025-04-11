@@ -81,7 +81,7 @@ class Order (Base):
         ForeignKey('users.idUser'),
         nullable=True
     )
-    photoId: Mapped[str|None] = mapped_column(String(max), nullable=True)
+    photoId: Mapped[str|None] = mapped_column(String(255), nullable=True)
     pickup_time: Mapped[DateTime|None] = mapped_column(DateTime())
     completion_time: Mapped[DateTime|None] = mapped_column(DateTime())
     create_order_time: Mapped[DateTime] = mapped_column(DateTime())
