@@ -48,9 +48,9 @@ async def order_cargo_type(callback: CallbackQuery, state: FSMContext):
 @router.message(st.Order.cargo_weight)
 async def order_cargo_weight(message: Message, state: FSMContext):
        if valid.valid_weight(message.text):
-              await state.update_data(cargo_weight = float(message.text), next_state = st.Order.depart_loc)
               await state.set_state(st.DepChoise.dep_choise)
-              await message.answer("Выберете категорию точки отправления", reply_markup= kb.dep_keyboard)
+              mes = await message.answer("Выберете категорию точки отправления", reply_markup= kb.dep_keyboard)
+              await state.update_data(cargo_weight = float(message.text), next_state = st.Order.depart_loc)
        else:
               await message.answer('Некорректные данные. Повторите попытку. Если число дробное - введите его через точку')
        
@@ -77,7 +77,6 @@ async def order_goal_loc(callback: CallbackQuery, state: FSMContext):
        await state.set_state(st.Order.photo)
        await callback.message.edit_text(f"Корпус доставки: {goal}")
        await callback.message.answer('Хотите ли вы добавить фото к грузу?', reply_markup= kb.photoQuestKey)
-
 
 @router.callback_query(st.Order.photo, F.data == ("cmd_photo_quest_accept"))
 async def acept_order_photo(calback: CallbackQuery, state: FSMContext):
@@ -381,11 +380,29 @@ async def set_rate(callback: CallbackQuery):
        except Exception as e:
               await callback.message.answer("Ошибка добавления оценки. Попробуйте позже")
 
+@router.callback_query(st.DepChoise.build_choise, F.data == 'back_to_dep_choise')
+async def back_to_dep_type(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    await state.set_state(st.DepChoise.dep_choise)
+    await callback.message.edit_text("Выберите категорию точки", reply_markup=kb.dep_keyboard)
+      
+@router.callback_query(F.data == 'back_to_build_choise')
+async def back_to_dep_list(callback: CallbackQuery, state: FSMContext):
+       data = await state.get_data()
+       dep_type = data.get("dep_type")
+       if dep_type is None:
+              await callback.answer("Ошибка возврата: тип подразделения не найден", show_alert=True)
+              return
+       await state.set_state(st.DepChoise.build_choise)
+       await callback.answer()
+       await callback.message.edit_text("Выберите номер подразделения", reply_markup=kb.dep_chose(int(dep_type)))
+
 @router.callback_query(st.DepChoise.dep_choise, F.data.startswith('dep_type_choise'))
 async def dep_choise(callbacke: CallbackQuery, state: FSMContext):
        dep_type = callbacke.data.split(':')[1]
        await callbacke.answer()
        await state.set_state(st.DepChoise.build_choise)
+       await state.update_data(dep_type=dep_type)
        await callbacke.message.edit_text('Выберите номер подразделения', reply_markup= kb.dep_chose(int(dep_type)))
 
 @router.callback_query(st.DepChoise.build_choise, F.data.startswith('depart'))

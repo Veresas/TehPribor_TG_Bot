@@ -260,6 +260,7 @@ def dep_chose(dep_type_id):
     else:
         for dep in deps:
             keyboard.add(InlineKeyboardButton(text=dep["name"], callback_data=f'depart:{dep["id"]}'))
+        keyboard.add(InlineKeyboardButton(text="Назад", callback_data=f'back_to_dep_choise'))
     
     return keyboard.adjust(2).as_markup()
 
@@ -274,6 +275,7 @@ def build_chose(dep_id):
         for build in builds:
             build_name = rq.get_build_name(int(build["building_id"]))
             keyboard.add(InlineKeyboardButton(text=build_name, callback_data=f'depart_build:{build["id"]}'))
+        keyboard.add(InlineKeyboardButton(text="Назад", callback_data=f'back_to_build_choise'))
     
     return keyboard.adjust(2).as_markup()
 
