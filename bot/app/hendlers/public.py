@@ -41,7 +41,7 @@ COMMANDS_BY_ROLE = {
        BotCommand(command="new_order", description="Создание нового заказа"),
        BotCommand(command="cancel", description="Отмена команды"),
        BotCommand(command="export", description="Импорт данных о заказах в Exel"),
-       BotCommand(command="coefficients", description="Просмотр коэфицентов"),
+       BotCommand(command="admin_panel", description="Панель администратора"),
        BotCommand(command="reload_comand", description="Обновление списка команд"),
        BotCommand(command="change_role", description="Смена роли")
     ],
@@ -521,7 +521,8 @@ async def cmd_help(message: Message):
                             "Экспорт в Excel:\n"
                             "Для экспорта данных о заказах в файл Excel нужно: выбрать команду /export и выбрать нужный период."
                             "Каждая из команд (день, неделя, месяц, год) отсчитывает от настоящего дня минус соответствующее число дней."
-                            "Общяя настройка коэффицентов: /coefficients \n"
+                            "Панель администратора: /admin_panel \n"
+                            "Панелт админстратора предоставляет функции для просмотра сотрудников, отдеов/корпусов и коэфицентов."
                      )
 
        await message.answer(mes)
