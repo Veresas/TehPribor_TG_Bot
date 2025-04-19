@@ -951,3 +951,35 @@ async def add_ratio(session: AsyncSession, coeff_type, value):
             )
             
     session.add(data_save)
+
+@connection
+async def get_stuff_List_mes(session: AsyncSession, roleId: int):
+    stmt = (
+        select(tb.User)
+        .where(tb.User.roleId == roleId)
+        .order_by(tb.User.fio)
+    )
+
+    res = await session.execute(stmt)
+    stuffList = res.scalars().all()
+
+    mes = "\n"
+    for stuff in stuffList:
+        mes = mes + stuff.fio
+        if roleId == 2:
+            rate = await get_driver_rate(stuff.idUser)
+            mes = mes + " рейтинг: "+ str(rate)
+        mes = mes +"\n"
+    return mes
+
+@connection
+async def get_driver_rate(ssession: AsyncSession, driverId: int) -> float:
+    stmt = select(func.avg(tb.Order.driverRate)).where(
+        tb.Order.driverId == driverId,
+        tb.Order.driverRate.isnot(None)
+    )
+
+    result = await ssession.execute(stmt)
+    average_rate = result.scalar_one_or_none()
+
+    return round(average_rate, 2) if average_rate is not None else 0.0

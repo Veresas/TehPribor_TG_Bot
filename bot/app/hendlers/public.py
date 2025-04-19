@@ -1,6 +1,7 @@
 from aiogram import F, Router, Bot
 from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove, ContentType
 from aiogram.filters import CommandStart, Command, StateFilter
+from aiogram.types import InlineKeyboardMarkup
 
 from aiogram.fsm.context import FSMContext
 import app.validators as valid
@@ -12,6 +13,7 @@ from aiogram.types import BotCommand
 import logging
 import app.utils.states as st
 import os
+import app.utils.help_func as util
 
 router = Router()
 
@@ -240,7 +242,6 @@ async def order_move_back(callback: CallbackQuery, state: FSMContext):
        current_state = await state.get_state()
        data["indexStart"] = (data["indexStart"]-5)
        data["indexEnd"] = (data["indexEnd"]-5)
-       print(f'Пользоавтель {data["tg_id"]} с ролью {data["userRole"]} в состоянии {current_state} наживает назад при списке {data["orderList"]} и индексами начала = {data["indexStart"]} и конца = {data["indexEnd"]}')
        await callback.message.edit_text(mes, reply_markup= await kb.order_select_keyboard(data=data, isHistoruPraviteCatalog=data.get("isHistoruPraviteCatalog", False)), parse_mode="HTML")
 
 @router.callback_query(StateFilter(st.Order_list.start, st.Privat_order_list.start), F.data == ('order_move_forward'))
@@ -525,15 +526,18 @@ async def cmd_help(message: Message):
 
        await message.answer(mes)
 
-"""
-@router.message(Command('test'))
-async def cmd_test(message: Message, state: FSMContext):
-       await state.set_state(st.Order.cargo_weight)
-       
-@router.callback_query(st.Test.start )
-async def test_dep(callbacke: CallbackQuery, state: FSMContext):
-       dep_buld_id = callbacke.data.split(':')[1]
-       await callbacke.answer()
-       dep_description = rq.get_dep_build_description(int(dep_buld_id))
-       await callbacke.message.answer(f"Связка зданий id = {dep_description}")
-"""
+@router.callback_query(F.data == "go_back")
+async def go_back(callback: CallbackQuery, state: FSMContext):
+       last = await util.pop_scene(state)
+
+       if not last:
+              await callback.answer("🔙 Назад недоступен", show_alert=True)
+              return
+
+       await callback.message.edit_text(
+              text=last["text"],
+              reply_markup=last["keyboard"]
+       )
+
+       await callback.answer("🔙 Возврат назад")
+

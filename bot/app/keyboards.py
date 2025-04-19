@@ -251,7 +251,7 @@ dep_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     ]
 ])
 
-def dep_chose(dep_type_id):
+def dep_chose(dep_type_id, is_ap=False):
     deps = rq.get_dep_List(dep_type_id)
 
     keyboard = InlineKeyboardBuilder()
@@ -260,11 +260,15 @@ def dep_chose(dep_type_id):
     else:
         for dep in deps:
             keyboard.add(InlineKeyboardButton(text=dep["name"], callback_data=f'depart:{dep["id"]}'))
-        keyboard.add(InlineKeyboardButton(text="Назад", callback_data=f'back_to_dep_choise'))
+        if(is_ap):
+            keyboard.add(InlineKeyboardButton(text="Назад", callback_data="go_back"))
+        else:
+            keyboard.add(InlineKeyboardButton(text="Назад", callback_data=f'back_to_dep_choise'))
+    
     
     return keyboard.adjust(2).as_markup()
 
-def build_chose(dep_id):
+def build_chose(dep_id, is_ap = False):
     id = int(dep_id)
     builds = rq.get_bilds_List(id)
     keyboard = InlineKeyboardBuilder()
@@ -275,7 +279,10 @@ def build_chose(dep_id):
         for build in builds:
             build_name = rq.get_build_name(int(build["building_id"]))
             keyboard.add(InlineKeyboardButton(text=build_name, callback_data=f'depart_build:{build["id"]}'))
-        keyboard.add(InlineKeyboardButton(text="Назад", callback_data=f'back_to_build_choise'))
+        if is_ap:
+            keyboard.add(InlineKeyboardButton(text="Назад", callback_data="go_back"))
+        else:
+            keyboard.add(InlineKeyboardButton(text="Назад", callback_data=f'back_to_build_choise'))
     
     return keyboard.adjust(2).as_markup()
 
@@ -284,6 +291,7 @@ def ratio_type_keyboard():
     keyboard.add(InlineKeyboardButton(text="Тип груза", callback_data="ratio_type:cargo"))
     keyboard.add(InlineKeyboardButton(text="Время", callback_data="ratio_type:time"))
     keyboard.add(InlineKeyboardButton(text="Вес", callback_data="ratio_type:weight"))
+    keyboard.add(InlineKeyboardButton(text="Назад", callback_data="go_back"))
     return keyboard.adjust(1).as_markup()
 
 def generic_coeff_keyboard(items: list, key_prefix: str):
@@ -292,4 +300,44 @@ def generic_coeff_keyboard(items: list, key_prefix: str):
         display = f"{item['label']} → {item['coefficent']}"
         keyboard.add(InlineKeyboardButton(text=display, callback_data=f"change_coeff:{key_prefix}:{item['id']}"))
     keyboard.add(InlineKeyboardButton(text="Добавить новый", callback_data=f"add_coeff:{key_prefix}"))
+    keyboard.add(InlineKeyboardButton(text="Назад", callback_data="go_back"))
     return keyboard.adjust(1).as_markup()
+
+admin_panel_kb = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [InlineKeyboardButton(text="Сотрудники", callback_data="ap_choise:staff")],
+        [InlineKeyboardButton(text="Отделы", callback_data="ap_choise:departments")],
+        [InlineKeyboardButton(text="Коэффициенты", callback_data="ap_choise:coefficients")]
+    ]
+)
+
+async def ap_staff_cat_keyboard(user_id: int) -> InlineKeyboardMarkup:
+    user_role = await rq.get_user_role(tg_id=user_id)
+
+    buttons = [
+        [InlineKeyboardButton(text="Транспортировщики", callback_data="ap_staff_role:couriers")],
+        [InlineKeyboardButton(text="Диспетчера", callback_data="ap_staff_role:dispatchers")],
+
+    ]
+
+    if user_role in ("Мастер_админ"):
+        buttons.append([InlineKeyboardButton(text="Админы", callback_data="ap_staff_role:admins")])
+    
+    buttons.append([InlineKeyboardButton(text="Назад", callback_data="go_back")])
+
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+go_back_kb = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [InlineKeyboardButton(text="Назад", callback_data="go_back")]
+    ]
+)
+
+ap_dep_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+    [
+        InlineKeyboardButton(text='Цеха', callback_data='dep_type_choise:1'),
+        InlineKeyboardButton(text='Отделы', callback_data='dep_type_choise:2'),
+    ],
+    [InlineKeyboardButton(text="Назад", callback_data="go_back")]
+])
+

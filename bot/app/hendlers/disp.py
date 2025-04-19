@@ -382,9 +382,9 @@ async def set_rate(callback: CallbackQuery):
 
 @router.callback_query(st.DepChoise.build_choise, F.data == 'back_to_dep_choise')
 async def back_to_dep_type(callback: CallbackQuery, state: FSMContext):
-    await callback.answer()
-    await state.set_state(st.DepChoise.dep_choise)
-    await callback.message.edit_text("Выберите категорию точки", reply_markup=kb.dep_keyboard)
+       await callback.answer()
+       await state.set_state(st.DepChoise.dep_choise)
+       await callback.message.edit_text("Выберите категорию точки", reply_markup=kb.dep_keyboard)
       
 @router.callback_query(F.data == 'back_to_build_choise')
 async def back_to_dep_list(callback: CallbackQuery, state: FSMContext):
@@ -412,3 +412,4 @@ async def build_choise(callbacke: CallbackQuery, state: FSMContext):
        await callbacke.answer()
        await state.set_state(data["next_state"])
        await callbacke.message.edit_text('Выберите корпус', reply_markup= kb.build_chose(int(dep_id)))
+

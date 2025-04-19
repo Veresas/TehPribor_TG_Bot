@@ -9,19 +9,16 @@ import app.database.requests as rq
 
 from datetime import datetime, timedelta
 import app.utils.states as st
-
+import app.utils.filters as fl
+import app.utils.help_func as util
 router = Router()
 
 # region экспорт
-@router.message(Command('export'))
+@router.message(fl.RoleFilter("Администратор, Мастер_админ"), Command('export'))
 async def cmd_export(message: Message, state: FSMContext):
        await state.clear()
-       role = await rq.get_user_role(tg_id=message.from_user.id)
-       if (role == "Администратор"):
-              await message.answer("Какие данные экспортировать?", reply_markup=kb.exportchoice)
-              await state.set_state(st.ExportOrder.choise)
-       else:
-              await message.answer("У вас не хватает прав доступа для использования этой команды")
+       await message.answer("Какие данные экспортировать?", reply_markup=kb.exportchoice)
+       await state.set_state(st.ExportOrder.choise)
 
 @router.callback_query(st.ExportOrder.choise, F.data.startswith("export:"))
 async def exp_type_choise(callback: CallbackQuery, state: FSMContext):
@@ -86,71 +83,87 @@ async def make_export(message: Message, state:FSMContext, date_from, date_to = N
                      await message.answer(f"Произошла ошибка при экспорте. Попробуйте позже")
 #endregion
 
-@router.message(Command('coefficients'))
-async def show_ratio(message: Message, state: FSMContext):
-       role = await rq.get_user_role(tg_id=message.from_user.id)
-       if role == "Администратор":
-              await state.set_state(st.ChangRatio.choose_type)
-              await message.answer("Выберите, какой коэффициент хотите изменить:", reply_markup=kb.ratio_type_keyboard())
-       else:
-              await message.answer("У вас не хватает прав доступа для использования этой команды")
-
-@router.callback_query(StateFilter(st.ChangRatio.choose_type,
-                                   st.ChangRatio.select_cargo_type,
-                                   st.ChangRatio.select_time,
-                                   st.ChangRatio.select_weight), F.data.startswith("ratio_type:"))
+@router.callback_query(
+       StateFilter(st.ChangRatio.choose_type,
+                     st.ChangRatio.select_cargo_type,
+                     st.ChangRatio.select_time,
+                     st.ChangRatio.select_weight),
+       F.data.startswith("ratio_type:")
+)
 async def select_ratio_type(callback: CallbackQuery, state: FSMContext):
        _, ratio_type = callback.data.split(":")
        await callback.answer()
-       data = await state.get_data()
-       old_msg_id = data.get("id_mes")
 
-       if old_msg_id:
-              try:
-                     await callback.bot.delete_message(chat_id=callback.message.chat.id, message_id=old_msg_id)
-              except Exception:
-                     pass
        await state.update_data(ratio_type=ratio_type)
-       if ratio_type == "cargo":
-              items = await rq.get_cargo_type_list()
-              await state.set_state(st.ChangRatio.select_cargo_type)
-              new_mes = await callback.message.answer("Выберите тип груза:", reply_markup=kb.generic_coeff_keyboard(items, "cargo"))
-       elif ratio_type == "time":
-              items = await rq.get_time_coeffs()
-              await state.set_state(st.ChangRatio.select_time)
-              new_mes = await callback.message.answer("Выберите значение времени:", reply_markup=kb.generic_coeff_keyboard(items, "time"))
-       elif ratio_type == "weight":
-              items = await rq.get_weight_coeffs()
-              await state.set_state(st.ChangRatio.select_weight)
-              new_mes = await callback.message.answer("Выберите значение веса:", reply_markup=kb.generic_coeff_keyboard(items, "weight"))
 
-       await state.update_data(id_mes = new_mes.message_id)
+       match ratio_type:
+              case "cargo":
+                     items = await rq.get_cargo_type_list()
+                     mst = st.ChangRatio.select_cargo_type
+                     mes = "Выберите тип груза:"
+                     kb_markup = kb.generic_coeff_keyboard(items, "cargo")
+              case "time":
+                     items = await rq.get_time_coeffs()
+                     mst = st.ChangRatio.select_time
+                     mes = "Выберите значение времени:"
+                     kb_markup = kb.generic_coeff_keyboard(items, "time")
+              case "weight":
+                     items = await rq.get_weight_coeffs()
+                     mst = st.ChangRatio.select_weight
+                     mes = "Выберите значение веса:"
+                     kb_markup = kb.generic_coeff_keyboard(items, "weight")
 
-@router.callback_query(StateFilter(st.ChangRatio.select_cargo_type,
-                                   st.ChangRatio.select_time,
-                                   st.ChangRatio.select_weight ) , F.data.startswith("change_coeff:"))
+       await util.push_scene(
+              state,
+              message_id=callback.message.message_id,
+              text=mes,
+              keyboard=kb_markup,
+              state_name=mst.state
+       )
+
+       await state.set_state(mst)
+       await callback.message.edit_text(mes, reply_markup=kb_markup)
+
+
+@router.callback_query(
+       StateFilter(st.ChangRatio.select_cargo_type,
+                     st.ChangRatio.select_time,
+                     st.ChangRatio.select_weight),
+       F.data.startswith("change_coeff:")
+)
 async def change_any_ratio(callback: CallbackQuery, state: FSMContext):
        _, prefix, item_id = callback.data.split(":")
        await callback.answer()
+
        await state.update_data(coeff_id=item_id, coeff_type=prefix)
        await state.set_state(st.ChangRatio.set_generic_ratio)
-       await callback.message.answer("Введите новое значение коэффициента:")
 
-@router.callback_query(StateFilter(st.ChangRatio.select_cargo_type,
-                                   st.ChangRatio.select_time,
-                                   st.ChangRatio.select_weight ) , F.data.startswith("add_coeff:"))
+       await callback.message.edit_text("Введите новое значение коэффициента:")
+
+
+@router.callback_query(
+       StateFilter(st.ChangRatio.select_cargo_type,
+                     st.ChangRatio.select_time,
+                     st.ChangRatio.select_weight),
+       F.data.startswith("add_coeff:")
+)
 async def add_any_ratio(callback: CallbackQuery, state: FSMContext):
        _, prefix = callback.data.split(":")
        await callback.answer()
+
        await state.update_data(coeff_type=prefix)
        await state.set_state(st.ChangRatio.set_group_ratio)
+
        match prefix:
               case "cargo":
-                     await callback.message.answer("Введите новое значение для группы груза (только слова):")
+                     text = "Введите новое значение для группы груза (только слова):"
               case "time":
-                     await callback.message.answer("Введите новое значение времени в минутах (только число):")
+                     text = "Введите новое значение времени в минутах (только число):"
               case "weight":
-                     await callback.message.answer("Введите новое значение веса в килограммах (только число):")
+                     text = "Введите новое значение веса в килограммах (только число):"
+
+       await callback.message.edit_text(text)
+
 
 
 @router.message(st.ChangRatio.set_group_ratio)
@@ -205,3 +218,130 @@ async def set_new_generic_ratio(message: Message, state: FSMContext):
               await message.answer("Неверный формат. Попробуйте снова.")
        except Exception as e:
               await message.answer(f"Ошибка обновления: {e}")
+
+
+@router.message(fl.RoleFilter("Администратор, Мастер_админ"), Command("admin_panel"))
+async def admin_panel(message: Message, state: FSMContext):
+       mes = "Выберете пункт меню"
+       mkb = kb.admin_panel_kb
+       mst = st.AdminPanel.menu
+
+       sent = await message.answer(text=mes, reply_markup=mkb)
+       await util.push_scene(
+              state,
+              message_id=sent.message_id,
+              text=mes,
+              keyboard=mkb,
+              state_name=mst.state
+       )
+
+       await state.set_state(mst)
+
+@router.callback_query(st.AdminPanel.menu, F.data.startswith("ap_choise"))
+async def ap__categori(callback: CallbackQuery, state: FSMContext):
+       categori = callback.data.split(":")[1]
+
+       match categori:
+              case "staff":
+                     mes = "Выберите категорию сотрудников"
+                     mkb = await kb.ap_staff_cat_keyboard(callback.from_user.id)
+                     mst = st.AdminPanel.stuffCat
+              case "departments":
+                     mes = "Выберите категорию отдела"
+                     mkb = kb.ap_dep_keyboard
+                     mst = st.AdminPanel.buildCat
+              case "coefficients":
+                     mes = "Выберите категорию коэффициентов"
+                     mkb = kb.ratio_type_keyboard()
+                     mst = st.ChangRatio.choose_type
+
+       await util.push_scene(
+              state,
+              message_id=callback.message.message_id,
+              text=mes,
+              keyboard=mkb,
+              state_name=mst.state
+       )
+
+       await state.set_state(mst)
+       await callback.answer()
+       await callback.message.edit_text(text=mes, reply_markup=mkb)
+
+
+@router.callback_query(st.AdminPanel.stuffCat, F.data.startswith("ap_staff_role"))
+async def ap_staff(callback: CallbackQuery, state: FSMContext):
+       categori = callback.data.split(":")[1]
+
+       match categori:
+              case "couriers":
+                     mes = "Список курьеров" + await rq.get_stuff_List_mes(roleId=2)
+                     mst = st.AP_Staff.disp
+              case "dispatchers":
+                     mes = "Список диспетчеров" + await rq.get_stuff_List_mes(roleId=1)
+                     mst = st.AP_Staff.disp
+              case "admins":
+                     mes = "Список админов" + await rq.get_stuff_List_mes(roleId=3)
+                     mst = st.AP_Staff.disp
+
+       mkb = kb.go_back_kb
+
+       await util.push_scene(
+              state,
+              message_id=callback.message.message_id,
+              text=mes,
+              keyboard=mkb,
+              state_name=mst.state
+       )
+
+       await state.set_state(mst)
+       await callback.answer()
+       await callback.message.edit_text(text=mes, reply_markup=mkb)
+
+@router.callback_query(st.AdminPanel.buildCat, F.data.startswith('dep_type_choise'))
+async def dep_choise(callbacke: CallbackQuery, state: FSMContext):
+       dep_type = callbacke.data.split(':')[1]
+       await callbacke.answer()
+       await state.update_data(dep_type=dep_type)
+       mes = 'Подразделения'
+       mkb = kb.dep_chose(int(dep_type), is_ap = True)
+       mst = st.AdminPanel.buildCat
+
+       await util.push_scene(
+              state,
+              message_id=callbacke.message.message_id,
+              text=mes,
+              keyboard=mkb,
+              state_name=mst.state
+       )
+
+       await callbacke.message.edit_text(mes, reply_markup= mkb)
+
+@router.callback_query(st.AdminPanel.buildCat, F.data.startswith('depart'))
+async def build_choise(callbacke: CallbackQuery, state: FSMContext):
+       dep_id = callbacke.data.split(':')[1]
+       mes = 'Корпуса'
+       mkb = kb.build_chose(int(dep_id), is_ap = True)
+       mst = st.AdminPanel.buildCat
+
+       await util.push_scene(
+              state,
+              message_id=callbacke.message.message_id,
+              text=mes,
+              keyboard=mkb,
+              state_name=mst.state
+       )
+
+       await callbacke.answer()
+       await callbacke.message.edit_text(mes,reply_markup= mkb)
+       
+"""
+@router. ()
+async def (message: Message, calback: CallbackQuery, state: FSMContext):
+       mes = ""
+       mkb = kb
+       mst = st
+       await state.update_data(message_id=message.message_id,
+                                   text=mes,
+                                   keyboard=mkb,
+                                   state=mst.state)
+"""

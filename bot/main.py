@@ -6,6 +6,7 @@ from app.hendlers import public, disp, admin
 from app.database.models import async_main
 import app.database.requests as rq
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+import logging
 
 load_dotenv()
 bot = Bot(token=os.getenv('TOKEN'))
@@ -61,6 +62,7 @@ async def main():
      
 if __name__ == '__main__':
     try:
+        #logging.basicConfig(level=logging.INFO)
         asyncio.run(main())
     except KeyboardInterrupt:
         print('Бот выключен')  

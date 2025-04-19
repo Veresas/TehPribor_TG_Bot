@@ -70,3 +70,13 @@ class ChangRatio(StatesGroup):
 class Test(StatesGroup):
        start = State()
 
+class AdminPanel(StatesGroup):
+       menu = State()
+       stuffCat = State()
+       coefCat = State()
+       buildCat = State()
+
+class AP_Staff(StatesGroup):
+       deivet = State()
+       disp = State()
+       admins =State()
