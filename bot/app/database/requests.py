@@ -613,12 +613,15 @@ async def export_diagrama(session,
         select(tb.Order)
         .options(joinedload(tb.Order.cargoType))
         .options(joinedload(tb.Order.executor))
+        .options(joinedload(tb.Order.depart_loc_ref).joinedload(tb.DepartmentBuilding.department).joinedload(tb.Department.departmentType))
+        .options(joinedload(tb.Order.goal_loc_ref).joinedload(tb.DepartmentBuilding.department).joinedload(tb.Department.departmentType))
         .where(and_(
             tb.Order.orderStatusId == 3,
             tb.Order.completion_time.isnot(None),
             tb.Order.pickup_time.isnot(None),
             tb.Order.completion_time >= date_from,
-            tb.Order.completion_time <= date_to
+            tb.Order.completion_time <= date_to,
+            tb.Order.depart_loc_ref
         ))
     )
 
@@ -646,11 +649,43 @@ async def export_diagrama(session,
     driver_counts = df["Водитель"].value_counts()
     cargo_counts = df["Группа груза"].value_counts()
 
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(17, 12), height_ratios=[1, 1])
-    period_str = f"Период: {date_from.strftime('%d.%m.%Y')} — {date_to.strftime('%d.%m.%Y')}"
-    fig.suptitle(period_str, fontsize=16, fontweight='bold')
+    orders_from_workshops = [
+        o for o in orders
+        if o.depart_loc_ref and
+        o.depart_loc_ref.department and
+        o.depart_loc_ref.department.departmentType and
+        o.depart_loc_ref.department.departmentType.department_type_id == 1
+        and o.cargoType
+    ]
 
+    orders_to_workshops = [
+        o for o in orders
+        if o.goal_loc_ref and
+        o.goal_loc_ref.department and
+        o.goal_loc_ref.department.departmentType and
+        o.goal_loc_ref.department.departmentType.department_type_id == 1
+        and o.cargoType
+    ]
+
+    from_stats = pd.crosstab(
+        [o.depart_loc_ref.department.department_name for o in orders_from_workshops],
+        [o.cargoType.cargoTypeName for o in orders_from_workshops]
+    )
+
+    to_stats = pd.crosstab(
+        [o.goal_loc_ref.department.department_name for o in orders_to_workshops],
+        [o.cargoType.cargoTypeName for o in orders_to_workshops]
+    )
+    period_str = f"Период: {date_from.strftime('%d.%m.%Y')} — {date_to.strftime('%d.%m.%Y')}"
+    fig1, (ax1, ax2) = plt.subplots(2, 1, figsize=(17, 19), height_ratios=[1, 1])
+    fig1.suptitle(period_str, fontsize=16, fontweight='bold')
     plt.subplots_adjust(left=0.1, right=0.65, top=0.95, bottom=0.1, hspace=0.3)
+
+    fig2, (ax3, ax4) = plt.subplots(2, 1, figsize=(21, 12), height_ratios=[1, 1])
+    fig2.suptitle(period_str, fontsize=16, fontweight='bold')
+    plt.subplots_adjust(left=0.1, right=0.65, top=0.95, bottom=0.1, hspace=0.3)
+
+
 
     driver_cargo.plot(kind='bar', stacked=True, ax=ax1, color=plt.cm.Set3(range(len(driver_cargo.columns))), edgecolor='black')
     ax1.set_title("Количество заказов по водителям с разбиением по типам грузов")
@@ -705,15 +740,42 @@ async def export_diagrama(session,
     
     ax1.legend(title="Группа груза", bbox_to_anchor=(1.0, 1), loc='upper left')
 
+    from_stats.plot(kind="bar", stacked=True, ax=ax3, colormap="tab20", edgecolor='black')
+
+    # 📊 3-я диаграмма: поступление заказов из цехов по типам
+    ax3.set_title("Поступление заказов из цехов по типам")
+    ax3.set_xlabel("Цех (откуда)")
+    ax3.set_ylabel("Количество")
+    ax3.tick_params(axis='x', rotation=45)
+    ax3.grid(True, axis='y')
+    ax3.legend(title="Группа груза", bbox_to_anchor=(1.05, 1), loc='upper left')
+
+    # 📊 4-я диаграмма: поступление заказов в цеха по типам
+    to_stats.plot(kind="bar", stacked=True, ax=ax4, colormap="tab20c", edgecolor='black')
+    ax4.set_title("Поступление заказов в цеха по типам")
+    ax4.set_xlabel("Цех (куда)")
+    ax4.set_ylabel("Количество")
+    ax4.tick_params(axis='x', rotation=45)
+    ax4.grid(True, axis='y')
+    ax4.legend(title="Группа груза", bbox_to_anchor=(1.05, 1), loc='upper left')
+
     plt.tight_layout()
 
-    hist_file = BytesIO()
-    plt.savefig(hist_file, format='png', bbox_inches='tight')
-    plt.close()
-    hist_file.seek(0)
+    hist_file1 = BytesIO()
+    fig1.savefig(hist_file1, format='png', bbox_inches='tight')
+    plt.close(fig1)
+    hist_file1.seek(0)
 
-    hist_filename = f"Диаграмма_транспортировщиков_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
-    return BufferedInputFile(file=hist_file.getvalue(), filename=hist_filename)
+    # Сохраняем второй график
+    hist_file2 = BytesIO()
+    fig2.savefig(hist_file2, format='png', bbox_inches='tight')
+    plt.close(fig2)
+    hist_file2.seek(0)
+
+    return [
+        BufferedInputFile(hist_file1.getvalue(), filename=f"Водители_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"),
+        BufferedInputFile(hist_file2.getvalue(), filename=f"Цеха_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"),
+    ]
 
 @connection
 async def get_user_id(session: AsyncSession, tg_id: int) -> int:

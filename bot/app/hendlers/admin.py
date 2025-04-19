@@ -74,8 +74,9 @@ async def make_export(message: Message, state:FSMContext, date_from, date_to = N
                      file = await rq.export_orders_to_excel(date_from=date_from, date_to=date_to)
                      await message.answer_document(file, caption="Выгрузка заказов", reply_markup=ReplyKeyboardRemove())
               if data["expType"] == "drivers":
-                     diogram = await rq.export_diagrama(date_from=date_from, date_to=date_to)
-                     await message.answer_photo(diogram, caption="Гистограмма продуктивности водителей", reply_markup=ReplyKeyboardRemove())
+                     diograms = await rq.export_diagrama(date_from=date_from, date_to=date_to)
+                     for diogram in diograms:           
+                            await message.answer_photo(diogram, reply_markup=ReplyKeyboardRemove())
        except Exception as e:
               if str(e) == "Нет выполненных заказов за указанный период":             
                      await message.answer(f"В заданный период данных нет")
