@@ -582,6 +582,30 @@ async def notificationDrivers(session: AsyncSession,  bot: Bot):
             logging.error(f"Ошибка отправки сообщения для заказа {order.idOrder}: {e}")
 
 @connection
+async def notiNewOrders(session: AsyncSession,  bot: Bot):
+    target_time = datetime.now().replace(hour=0,minute=0,second=0)
+    stmt = (
+        select(tb.Order)
+        .where(and_(
+            tb.Order.orderStatusId == 1,
+            tb.Order.create_order_time > target_time
+        ))
+    )
+    result = await session.execute(stmt)
+    orders = result.scalars().all()
+    countOrders = len(orders)
+    if countOrders > 0:
+        drivers = await session.scalars(select(tb.User).where(tb.User.roleId == 2))
+        drivers = drivers.all()
+        for driver in drivers:
+            try:
+
+                await bot.send_message(driver.tgId, f'Доступно {countOrders} заказов')
+            except Exception as e:
+                logging.error(f"Ошибка отправки сообщения для водителя {driver.tgId}: {e}")
+
+
+@connection
 async def dayEnd(session: AsyncSession, bot: Bot):
     stmt = (
         select(tb.Order)

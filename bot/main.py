@@ -29,6 +29,17 @@ async def on_startup():
     )
 
     scheduler.add_job(
+        rq.notiNewOrders,  
+        'cron',  
+        day_of_week='mon-fri',  
+        hour='7-18',  
+        minute='*/5', 
+        timezone='Europe/Moscow',
+        args=[bot]
+    )
+
+
+    scheduler.add_job(
         rq.dayEnd,  
         'cron',  
         day_of_week='mon-fri',  
