@@ -27,7 +27,7 @@ async def exp_type_choise(callback: CallbackQuery, state: FSMContext):
        await state.update_data(expType = exp_type)
        await callback.message.answer("За какой период выгрузить данные?", reply_markup=kb.exp_orders_kb)
 
-@router.message(st.ExportOrder.choise, F.text.lower().in_(["день ☀️", "неделя 📅", "месяц 🌙", "год 🗓️", "свой"]))
+@router.message(st.ExportOrder.choise, F.text.lower().in_(["день ☀️", "неделя 📅", "месяц 🌙", "год 🗓️", "свой ✏️"]))
 async def status_order_catalog(message: Message, state:FSMContext):
        per = message.text.lower()
        match per:
