@@ -674,7 +674,6 @@ async def export_diagrama(session,
     
     dataToTime = [
         {"Водитель": order.executor.fio,
-         "Группа груза": order.cargoType.cargoTypeName,
          "Время выполнения (сек)": (
          (order.completion_time - order.pickup_time).total_seconds() 
          if order.completion_time.date() == order.pickup_time.date() 
@@ -686,14 +685,9 @@ async def export_diagrama(session,
 
     dataToOrderCount = [
         {"Водитель": order.executor.fio,
-         "Группа груза": order.cargoType.cargoTypeName,
-         "Время выполнения (сек)": (
-         (order.completion_time - order.pickup_time).total_seconds() 
-         if order.completion_time.date() == order.pickup_time.date() 
-         else None
-        )
+         "Группа груза": order.cargoType.cargoTypeName
          }
-        for order in orders if order.executor and order.cargoType and order.completion_time.date() == order.pickup_time.date()
+        for order in orders if order.executor and order.cargoType
     ]
 
     df = pd.DataFrame(dataToTime)
