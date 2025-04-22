@@ -392,8 +392,10 @@ FIELDS = {
     #"Описание груза": "cargoDescription",
     "Тип груза": lambda order: order.cargoType.cargoTypeName if order.cargoType else "Не указан",
     #"Вес груза (кг)": "cargo_weight",
-    #"Место отправления": "depart_loc",
-    #"Место назначения": "goal_loc",
+    "Место отправления": lambda order: f'Отдел: {order.depart_loc_ref.department.department_name}, корпус: {order.depart_loc_ref.building.building_name}'
+    if order.depart_loc_ref and order.depart_loc_ref.department and order.depart_loc_ref.building else "Не указано",
+    "Место назначения": lambda order: f'Отдел: {order.goal_loc_ref.department.department_name}, корпус: {order.goal_loc_ref.building.building_name}'
+    if order.goal_loc_ref and order.goal_loc_ref.department and order.goal_loc_ref.building else "Не указано",
     "Время заказа": lambda order: order.time.strftime("%Y-%m-%d %H:%M:%S"),
     #"Статус": lambda order: order.orderStatus.orderStatusName if order.orderStatus else "Не указан",
     "Диспетчер": lambda order: order.dispatcher.fio if order.dispatcher else "Не указан",
@@ -422,6 +424,22 @@ async def export_orders_to_excel(
             .options(selectinload(tb.Order.executor))
             .options(selectinload(tb.Order.dispatcher))
             .options(selectinload(tb.Order.orderStatus))
+            .options(
+                        joinedload(tb.Order.depart_loc_ref)
+                        .joinedload(tb.DepartmentBuilding.department)
+                    )
+            .options(
+                        joinedload(tb.Order.depart_loc_ref)
+                        .joinedload(tb.DepartmentBuilding.building)
+                    )
+            .options(
+                        joinedload(tb.Order.goal_loc_ref)
+                        .joinedload(tb.DepartmentBuilding.department)
+                    )
+            .options(
+                        joinedload(tb.Order.goal_loc_ref)
+                        .joinedload(tb.DepartmentBuilding.building)
+                    )
         )
 
         if date_from:
@@ -644,8 +662,7 @@ async def export_diagrama(session,
             tb.Order.completion_time.isnot(None),
             tb.Order.pickup_time.isnot(None),
             tb.Order.completion_time >= date_from,
-            tb.Order.completion_time <= date_to,
-            tb.Order.depart_loc_ref
+            tb.Order.completion_time <= date_to
         ))
     )
 
@@ -766,6 +783,13 @@ async def export_diagrama(session,
 
     from_stats.plot(kind="bar", stacked=True, ax=ax3, colormap="tab20", edgecolor='black')
 
+    for i, (index, row) in enumerate(from_stats.iterrows()):
+        cumulative = 0
+        for j, value in enumerate(row):
+            if value > 0:
+                cumulative += value
+                ax3.text(i, cumulative - value / 2, str(int(value)), ha='center', va='center', fontsize=8, color='black')
+        ax3.text(i, cumulative + 0.5, str(int(row.sum())), ha='center', va='bottom', fontsize=9, fontweight='bold')   
     # 📊 3-я диаграмма: поступление заказов из цехов по типам
     ax3.set_title("Поступление заказов из цехов по типам")
     ax3.set_xlabel("Цех (откуда)")
@@ -774,6 +798,14 @@ async def export_diagrama(session,
     ax3.grid(True, axis='y')
     ax3.legend(title="Группа груза", bbox_to_anchor=(1.05, 1), loc='upper left')
 
+    for i, (index, row) in enumerate(to_stats.iterrows()):
+        cumulative = 0
+        for j, value in enumerate(row):
+            if value > 0:
+                cumulative += value
+                ax4.text(i, cumulative - value / 2, str(int(value)), ha='center', va='center', fontsize=8, color='black')
+        ax4.text(i, cumulative + 0.5, str(int(row.sum())), ha='center', va='bottom', fontsize=9, fontweight='bold')
+    
     # 📊 4-я диаграмма: поступление заказов в цеха по типам
     to_stats.plot(kind="bar", stacked=True, ax=ax4, colormap="tab20c", edgecolor='black')
     ax4.set_title("Поступление заказов в цеха по типам")
