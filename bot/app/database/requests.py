@@ -672,7 +672,7 @@ async def export_diagrama(session,
     if not orders:
         raise ValueError("Нет выполненных заказов за указанный период")
     
-    data = [
+    dataToTime = [
         {"Водитель": order.executor.fio,
          "Группа груза": order.cargoType.cargoTypeName,
          "Время выполнения (сек)": (
@@ -684,11 +684,25 @@ async def export_diagrama(session,
         for order in orders if order.executor and order.cargoType and order.completion_time.date() == order.pickup_time.date()
     ]
 
-    df = pd.DataFrame(data)
-    driver_cargo = pd.crosstab(df["Водитель"], df["Группа груза"])
+    dataToOrderCount = [
+        {"Водитель": order.executor.fio,
+         "Группа груза": order.cargoType.cargoTypeName,
+         "Время выполнения (сек)": (
+         (order.completion_time - order.pickup_time).total_seconds() 
+         if order.completion_time.date() == order.pickup_time.date() 
+         else None
+        )
+         }
+        for order in orders if order.executor and order.cargoType and order.completion_time.date() == order.pickup_time.date()
+    ]
+
+    df = pd.DataFrame(dataToTime)
     driver_time = df.groupby("Водитель")["Время выполнения (сек)"].mean()
-    driver_counts = df["Водитель"].value_counts()
-    cargo_counts = df["Группа груза"].value_counts()
+
+    df2 = pd.DataFrame(dataToOrderCount)
+    driver_cargo = pd.crosstab(df2["Водитель"], df2["Группа груза"])
+    driver_counts = df2["Водитель"].value_counts()
+    cargo_counts = df2["Группа груза"].value_counts()
 
     orders_from_workshops = [
         o for o in orders
