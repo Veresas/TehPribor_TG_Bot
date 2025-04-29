@@ -1,4 +1,4 @@
-from aiogram import F, Router
+from aiogram import F, Router, Bot 
 from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove
 from aiogram.filters import Command, StateFilter
 
@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 import app.utils.states as st
 import app.utils.filters as fl
 import app.utils.help_func as util
+
 router = Router()
 
 # region экспорт
@@ -334,7 +335,28 @@ async def build_choise(callbacke: CallbackQuery, state: FSMContext):
 
        await callbacke.answer()
        await callbacke.message.edit_text(mes,reply_markup= mkb)
-       
+
+# region Поддтверждение регистрации
+@router.callback_query(F.data.startswith('cmd_admin_reg'))
+async def actionWithRegRquest (callbacke: CallbackQuery, bot: Bot):
+       _, action, tgId, role = callbacke.data.split(':')
+       match action:
+              case 'accept':
+                     await rq.add_role_and_acess(tgId=tgId,role=role)
+                     mes = f'Доступ разрешен, ваша роль {role}'
+                     await util.set_user_commands(bot, tgId)
+              case 'cancel':
+                     mes = f'Доступ в систему воспрещен'
+       await callbacke.answer()
+       await callbacke.bot.edit_message_text(
+            text="Открытие доступа: успешно",
+            chat_id=callbacke.message.chat.id,
+            message_id=callbacke.message.message_id)
+       await bot.send_message(tgId, text=mes)
+
+
+
+# endregion
 """
 @router. ()
 async def (message: Message, calback: CallbackQuery, state: FSMContext):

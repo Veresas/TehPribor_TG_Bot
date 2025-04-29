@@ -46,17 +46,33 @@ async def check_user(session: AsyncSession, tg_id)-> bool:
 
 
 @connection
-async def reg_user(session: AsyncSession, data, tg_id)-> None:
-    role = await session.scalar(select(tb.Role).where(tb.Role.roleName == data['role']))
-
+async def reg_user(session: AsyncSession, data, tg_id)-> int:
+    tg_id = int(tg_id)
     new_user = tb.User(
         tgId = tg_id,
         phone=data.get("number"),
         fio=data.get("fio"),
-        roleId = role.idRole
+        roleId = None,
+        is_denied = True
     )
 
     session.add(new_user)
+
+@connection
+async def add_role_and_acess(session: AsyncSession, tgId, role):
+    role = await session.scalar(select(tb.Role).where(tb.Role.roleName == role))
+    new_data={
+        "roleId": role.idRole,
+        "is_denied": False
+    }
+
+    stmt = (
+        update(tb.User)
+        .where(tb.User.tgId == int(tgId))
+        .values(**new_data)
+    )
+
+    await session.execute(stmt)
 
 @connection
 async def get_cargo_types(session: AsyncSession):
@@ -249,12 +265,27 @@ async def get_user(session: AsyncSession, tg_id=None, id= None):
         user = await session.scalar(select(tb.User).where(tb.User.tgId == tg_id))
     if id != None:
         user = await session.scalar(select(tb.User).where(tb.User.idUser == id))
+    await session.refresh(
+        user,
+        attribute_names=[
+            "idUser",
+            "tgId",
+            "phone",
+            "fio",
+            "roleId",
+            "is_denied"
+        ]
+    )
+    session.expunge(user)
     return user
 
 @connection
 async def get_user_role(session: AsyncSession, tg_id):
+    tg_id = int(tg_id)
     user = await session.scalar(select(tb.User).where(tb.User.tgId == tg_id))
     role = await session.scalar(select(tb.Role).where(tb.Role.idRole == user.roleId))
+    if role == None:
+        return None
     return role.roleName
 
 @connection
@@ -1099,13 +1130,25 @@ async def get_stuff_List_mes(session: AsyncSession, roleId: int):
     return mes
 
 @connection
-async def get_driver_rate(ssession: AsyncSession, driverId: int) -> float:
+async def get_driver_rate(session: AsyncSession, driverId: int) -> float:
     stmt = select(func.avg(tb.Order.driverRate)).where(
         tb.Order.driverId == driverId,
         tb.Order.driverRate.isnot(None)
     )
 
-    result = await ssession.execute(stmt)
+    result = await session.execute(stmt)
     average_rate = result.scalar_one_or_none()
 
     return round(average_rate, 2) if average_rate is not None else 0.0
+
+@connection
+async def get_admins_for_alarm(session: AsyncSession):
+    stmt = (
+        select(tb.User)
+        .where(tb.User.idUser == 71)#исправить
+    )
+
+    result = await session.execute(stmt)
+    admins = result.scalars().all()
+    admin_ids = [admin.tgId for admin in admins]
+    return admin_ids

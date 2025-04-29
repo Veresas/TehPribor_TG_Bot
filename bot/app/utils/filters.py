@@ -41,3 +41,34 @@ class RoleFilter(BaseFilter):
             return False
 
         return False
+
+class AccessFilter(BaseFilter):
+    def __init__(
+        self,
+        deny_message: str = "🚫 Ваш доступ в систему ограничен. Обратитесь к администратору."
+    ):
+        self.deny_message = deny_message
+        self.public_commands = ["/start", "/register"]
+    async def __call__(self, obj: Union[Message, CallbackQuery]) -> bool:
+        user_id = None
+        send_method = None
+
+        user_id = obj.from_user.id
+        send_method = obj.answer
+        if not obj.text:
+            return True
+        
+        if any(obj.text.startswith(cmd) for cmd in self.public_commands) or obj.text[0] != '/':
+            return True
+        
+        if not user_id:
+            return False
+        user = await rq.get_user(tg_id=user_id)
+
+        # Если пользователь не найден или доступ запрещён
+        if not user or user.is_denied:
+            if send_method:
+                await send_method(self.deny_message)
+            return False
+            
+        return True

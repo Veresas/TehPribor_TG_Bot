@@ -24,8 +24,8 @@ class User (Base):
     tgId: Mapped[int] = mapped_column(BigInteger, unique=True)
     phone: Mapped[str] = mapped_column(String(15))
     fio: Mapped[str] = mapped_column(String(100))
-    roleId: Mapped[int] = mapped_column(ForeignKey('roles.idRole'))
-
+    roleId: Mapped[int] = mapped_column(ForeignKey('roles.idRole'), nullable=True)
+    is_denied: Mapped[bool] = mapped_column(Boolean, default=False)
     disp: Mapped[list['Order']] = relationship(
         back_populates='dispatcher',
         foreign_keys='Order.dispatcherId'

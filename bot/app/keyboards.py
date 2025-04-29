@@ -24,6 +24,15 @@ roles = InlineKeyboardMarkup(inline_keyboard= [
     [InlineKeyboardButton(text="Администратор", callback_data='role_admin')]
 ])
 
+def regAdminAcepts(tgId):
+    keyboard = InlineKeyboardBuilder()
+    keyboard.add(InlineKeyboardButton(text='Диспетчер', callback_data=f'cmd_admin_reg:accept:{tgId}:Диспетчер'))
+    keyboard.add(InlineKeyboardButton(text='Транспортировщик', callback_data=f'cmd_admin_reg:accept:{tgId}:Водитель'))
+    keyboard.add(InlineKeyboardButton(text='Администратор', callback_data=f'cmd_admin_reg:accept:{tgId}:Администратор'))
+    keyboard.add(InlineKeyboardButton(text='Отменить', callback_data=f'cmd_admin_reg:cancel:{tgId}:none'))
+
+    return keyboard.adjust(2).as_markup()
+
 get_number = ReplyKeyboardMarkup(
     keyboard=[[KeyboardButton(text='Отправить номер 📞', request_contact=True)]],
     resize_keyboard=True

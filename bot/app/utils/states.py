@@ -2,11 +2,11 @@ from aiogram.fsm.state import State, StatesGroup
 
 
 class Register(StatesGroup):
-       role = State()
-       pas = State()
        fio = State()
        number = State()
+       role = State()
        final = State()
+       adminAcept = State()
 
 class Order(StatesGroup):
        cargo_name = State()
@@ -80,3 +80,4 @@ class AP_Staff(StatesGroup):
        deivet = State()
        disp = State()
        admins =State()
+

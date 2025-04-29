@@ -11,8 +11,8 @@ from datetime import datetime, timedelta
 import logging
 import app.utils.states as st
 
-router = Router()
 
+router = Router()
 # region создание заказа
 @router.message(Command('new_order'))
 async def order_creat_start(message: Message, state:FSMContext):

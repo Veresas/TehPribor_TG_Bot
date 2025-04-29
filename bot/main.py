@@ -7,13 +7,16 @@ from app.database.models import async_main
 import app.database.requests as rq
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import logging
+import app.utils.filters as fl
 
 load_dotenv()
 bot = Bot(token=os.getenv('TOKEN'))
 dp = Dispatcher()
+dp.include_router(router=public.publicRouter)
 dp.include_router(router=public.router)
 dp.include_router(router=disp.router)
 dp.include_router(router=admin.router)
+dp.message.filter(fl.AccessFilter())
 scheduler = AsyncIOScheduler()
 
 async def on_startup():
