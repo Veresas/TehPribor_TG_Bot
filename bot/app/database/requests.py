@@ -1145,7 +1145,7 @@ async def get_driver_rate(session: AsyncSession, driverId: int) -> float:
 async def get_admins_for_alarm(session: AsyncSession):
     stmt = (
         select(tb.User)
-        .where(tb.User.idUser == 71)#исправить
+        .where(tb.User.roleId == 4)
     )
 
     result = await session.execute(stmt)
