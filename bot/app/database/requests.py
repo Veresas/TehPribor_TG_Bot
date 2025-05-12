@@ -503,9 +503,10 @@ async def export_orders_to_excel(
             time_to_complete_column = "Время завершения"
             postponed_column = "Перенесен"
             
-            df[time_to_take_column] = pd.to_datetime(df[time_to_take_column], errors='coerce')
-            df[time_to_complete_column] = pd.to_datetime(df[time_to_complete_column], errors='coerce')
-            df[date_column] = pd.to_datetime(df[date_column], errors='coerce')
+            #Попроавака на часовой пояс москвы +3 добавлен + pd.Timedelta(hours=3)
+            df[time_to_take_column] = pd.to_datetime(df[time_to_take_column], errors='coerce') + pd.Timedelta(hours=3)
+            df[time_to_complete_column] = pd.to_datetime(df[time_to_complete_column], errors='coerce') + pd.Timedelta(hours=3)
+            df[date_column] = pd.to_datetime(df[date_column], errors='coerce') + pd.Timedelta(hours=3)
             
             df.sort_values(by=date_column, inplace=True)
 
@@ -681,7 +682,8 @@ async def dayEnd(session: AsyncSession, bot: Bot):
 async def export_diagrama(session, 
     date_from: datetime = None,
     date_to: datetime = datetime.today() + timedelta(days = 1)) -> BufferedInputFile:
-    
+    print("date_from: ", date_from)
+    print("date_to: ", date_to)
     stmt = (
         select(tb.Order)
         .options(joinedload(tb.Order.cargoType))
@@ -699,7 +701,8 @@ async def export_diagrama(session,
 
     result = await session.execute(stmt)
     orders = result.scalars().all()
-
+    for order in orders:
+        print(order.idOrder)
     if not orders:
         raise ValueError("Нет выполненных заказов за указанный период")
     
