@@ -1127,24 +1127,27 @@ async def get_stuff_List_mes(session: AsyncSession, roleId: int):
     for stuff in stuffList:
         mes = mes + stuff.fio
         if roleId == 2:
-            rate = await get_driver_rate(stuff.idUser)
-            mes = mes + " рейтинг: "+ str(rate)
-        mes = mes +"\n"
+            rate, count = await get_driver_rate(stuff.idUser)
+            mes = mes + f'\n\t⭐ рейтинг: {str(rate)} \n\t📦 всего заказов с оценкой: {str(count)}'
+        mes = mes +"\n\n"
     return mes
 
 @connection
-async def get_driver_rate(session: AsyncSession, driverId: int) -> float:
-    stmt = select(func.avg(tb.Order.driverRate)).where(
+async def get_driver_rate(session: AsyncSession, driverId: int):
+    stmt = select(
+        func.avg(tb.Order.driverRate),
+        func.count(tb.Order.driverRate)
+        ).where(
         tb.Order.driverId == driverId,
         tb.Order.driverRate.isnot(None)
     )
 
     result = await session.execute(stmt)
-    average_rate = result.scalar_one_or_none()
+    average_rate, count = result.one_or_none()
 
-    return round(average_rate, 2) if average_rate is not None else 0.0
-
-@connection
+    average_rate = round(average_rate, 2) if average_rate is not None else 0.0
+    count = count or 0
+    return average_rate, count
 async def get_admins_for_alarm(session: AsyncSession):
     stmt = (
         select(tb.User)
