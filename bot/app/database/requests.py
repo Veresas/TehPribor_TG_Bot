@@ -1172,6 +1172,9 @@ async def get_drivers_payment(session: AsyncSession, last_month_12 = None, curre
             last_month_12 = today.replace(year=today.year - 1, month=12, day=12)
         else:
             last_month_12 = today.replace(month=today.month - 1, day=12)
+    else:
+        last_month_12 = datetime.strptime(last_month_12, '%d.%m.%Y')
+        current_month_12 = datetime.strptime(current_month_12, '%d.%m.%Y')
 
     drivers = await session.execute(
             select(tb.User.idUser, tb.User.fio)
