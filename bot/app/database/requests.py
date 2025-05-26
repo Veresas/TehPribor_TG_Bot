@@ -1200,7 +1200,7 @@ async def get_drivers_payment(session: AsyncSession):
         return "Нет заказов за период."
     sum_on_order = total_bonus / total_orders
     
-    mes = f'Таблица зарплат: \n Всего отвезенно заказов (с учетом коэффицентов): {total_orders} \n Общая сумма на премии: {total_bonus} \n Сумма премии на едеиницу заказа: {sum_on_order}'
+    mes = f'Таблица зарплат:\nВсего отвезенно заказов (с учетом коэффицентов): {total_orders}\nОбщая сумма на премии: {total_bonus}\nСумма премии на едеиницу заказа: {sum_on_order:.2f}\n\n'
     for driver_id in drivers_dict:
         bonus = drivers_dict[driver_id] * sum_on_order
         total_salary = bonus + salary
