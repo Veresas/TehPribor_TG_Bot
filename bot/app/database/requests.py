@@ -1166,7 +1166,7 @@ async def get_drivers_payment(session: AsyncSession, last_month_12 = None, curre
     total_bonus = 200000
     salary = 50000
 
-    if (current_month_12):
+    if (current_month_12 is None):
         current_month_12 = today.replace(day=12)
         if today.month == 1:  # Если январь, берём декабрь прошлого года
             last_month_12 = today.replace(year=today.year - 1, month=12, day=12)
