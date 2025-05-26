@@ -1186,7 +1186,7 @@ async def get_drivers_payment(session: AsyncSession):
         .options(joinedload(tb.Order.cargoType))
         .where(
             tb.Order.completion_time >= last_month_12,
-            tb.Order.completion_time <= current_month_12
+            tb.Order.completion_time < current_month_12
         )
     )
     result = await session.execute(stmt)
@@ -1200,11 +1200,11 @@ async def get_drivers_payment(session: AsyncSession):
         return "Нет заказов за период."
     sum_on_order = total_bonus / total_orders
     
-    mes = f'Таблица зарплат:\nВсего отвезенно заказов (с учетом коэффицентов): {total_orders}\nОбщая сумма на премии: {total_bonus}\nСумма премии на едеиницу заказа: {sum_on_order:.2f}\n\n'
+    mes = f'📊Расчёт зарплат за период с {last_month_12} по {current_month_12}\n📦Всего отвезено заказов (с учетом коэффициентов): {total_orders}\n💰Общая сумма на премии: {total_bonus}\n📈Сумма премии на единицу заказа: {sum_on_order:.2f}\n\n'    
     for driver_id in drivers_dict:
         bonus = drivers_dict[driver_id] * sum_on_order
         total_salary = bonus + salary
-        mes += f'{drivers_names[driver_id]} премия: {bonus:.2f} зарплата: {total_salary:.2f} \n'
+        mes += f'👤{drivers_names[driver_id]}\n💵Премия: {bonus:.2f}\n💼Зарплата: {total_salary:.2f} \n\n'
 
     return mes
     
