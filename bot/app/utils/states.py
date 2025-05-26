@@ -81,3 +81,6 @@ class AP_Staff(StatesGroup):
        disp = State()
        admins =State()
 
+class DriverSalyre(StatesGroup):
+       set_period = State()
+       start = State()

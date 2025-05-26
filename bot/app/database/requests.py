@@ -1160,16 +1160,18 @@ async def get_admins_for_alarm(session: AsyncSession):
     return admin_ids
 
 @connection
-async def get_drivers_payment(session: AsyncSession):
+async def get_drivers_payment(session: AsyncSession, last_month_12 = None, current_month_12 = None):
     today = datetime.now()
-    current_month_12 = today.replace(day=12)
+
     total_bonus = 200000
     salary = 50000
 
-    if today.month == 1:  # Если январь, берём декабрь прошлого года
-        last_month_12 = today.replace(year=today.year - 1, month=12, day=12)
-    else:
-        last_month_12 = today.replace(month=today.month - 1, day=12)
+    if (current_month_12):
+        current_month_12 = today.replace(day=12)
+        if today.month == 1:  # Если январь, берём декабрь прошлого года
+            last_month_12 = today.replace(year=today.year - 1, month=12, day=12)
+        else:
+            last_month_12 = today.replace(month=today.month - 1, day=12)
 
     drivers = await session.execute(
             select(tb.User.idUser, tb.User.fio)
@@ -1200,7 +1202,7 @@ async def get_drivers_payment(session: AsyncSession):
         return "Нет заказов за период."
     sum_on_order = total_bonus / total_orders
     
-    mes = f'📊Расчёт зарплат за период с {last_month_12} по {current_month_12}\n📦Всего отвезено заказов (с учетом коэффициентов): {total_orders}\n💰Общая сумма на премии: {total_bonus}\n📈Сумма премии на единицу заказа: {sum_on_order:.2f}\n\n'    
+    mes = f'📊Расчёт зарплат за период с {last_month_12.strftime("%d-%m-%Y")} по {current_month_12.strftime("%d-%m-%Y")}\n📦Всего отвезено заказов (с учетом коэффициентов): {total_orders}\n💰Общая сумма на премии: {total_bonus}\n📈Сумма премии на единицу заказа: {sum_on_order:.2f}\n💵Фиксированный оклад: {salary}\n\n'    
     for driver_id in drivers_dict:
         bonus = drivers_dict[driver_id] * sum_on_order
         total_salary = bonus + salary

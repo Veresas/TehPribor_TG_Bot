@@ -355,11 +355,20 @@ async def actionWithRegRquest (callbacke: CallbackQuery, bot: Bot):
        await bot.send_message(tgId, text=mes)
 
 @router.message(Command("drivers_salary"))
-async def drivers_payment (message: Message):
-       await message.answer("Производится расчет")
-       mes = await rq.get_drivers_payment()
-       await message.answer(mes)
-       
+async def drivers_payment (message: Message, state: FSMContext):
+       await message.answer("Введите чило в формате ДД.ММ.ГГГГ-ДД.ММ.ГГГГ")
+       await state.set_state(st.DriverSalyre.set_period)
+
+
+@router.message(st.DriverSalyre.set_period)
+async def salary_period(message: Message, state:FSMContext):
+       if valid.valid_exp_period (message.text):
+              date_from, date_to = message.text.split('-')
+              await state.set_state(st.DriverSalyre.start)
+              mes = await rq.get_drivers_payment(last_month_12=date_from, current_month_12=date_to)
+              await message.answer(mes)
+       else:
+              await message.answer("Некорректный формат введных данных. Повторите еще раз")
 
 # endregion
 """
