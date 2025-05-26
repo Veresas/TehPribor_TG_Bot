@@ -1158,3 +1158,55 @@ async def get_admins_for_alarm(session: AsyncSession):
     admins = result.scalars().all()
     admin_ids = [admin.tgId for admin in admins]
     return admin_ids
+
+@connection
+async def get_drivers_payment(session: AsyncSession):
+    today = datetime.now()
+    current_month_12 = today.replace(day=12)
+    total_bonus = 200000
+    salary = 50000
+
+    if today.month == 1:  # Если январь, берём декабрь прошлого года
+        last_month_12 = today.replace(year=today.year - 1, month=12, day=12)
+    else:
+        last_month_12 = today.replace(month=today.month - 1, day=12)
+
+    drivers = await session.execute(
+            select(tb.User.idUser, tb.User.fio)
+            .where(tb.User.roleId == 2))
+    
+    drivers = drivers.all()
+
+    drivers_names = {idUser: fio for idUser, fio in drivers}
+    drivers_dict = {idUser: 0 for idUser, _ in drivers}
+
+    stmt = (
+        select(tb.Order)
+        .options(joinedload(tb.Order.executor))
+        .options(joinedload(tb.Order.cargoType))
+        .where(
+            tb.Order.completion_time >= last_month_12,
+            tb.Order.completion_time <= current_month_12
+        )
+    )
+    result = await session.execute(stmt)
+    orders = result.scalars().all()
+
+    for order in orders:
+        drivers_dict[order.executor.idUser] = drivers_dict[order.executor.idUser] + 1 * order.cargoType.ratio
+
+    total_orders = sum(drivers_dict.values())
+    if total_orders == 0:
+        return "Нет заказов за период."
+    sum_on_order = total_bonus / total_orders
+    
+    mes = f'Таблица зарплат: \n Всего отвезенно заказов (с учетом коэффицентов): {total_orders} \n Общая сумма на премии: {total_bonus} \n Сумма премии на едеиницу заказа: {sum_on_order}'
+    for driver_id in drivers_dict:
+        bonus = drivers_dict[driver_id] * sum_on_order
+        total_salary = bonus + salary
+        mes += f'{drivers_names[driver_id]} премия: {bonus:.2f} зарплата: {total_salary:.2f} \n'
+
+    return mes
+    
+
+

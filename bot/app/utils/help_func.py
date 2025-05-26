@@ -60,7 +60,8 @@ COMMANDS_BY_ROLE = {
        BotCommand(command="export", description="Импорт данных о заказах в Exel"),
        BotCommand(command="admin_panel", description="Панель администратора"),
        BotCommand(command="reload_comand", description="Обновление списка команд"),
-       BotCommand(command="change_role", description="Смена роли")
+       BotCommand(command="change_role", description="Смена роли"),
+       BotCommand(command="drivers_salary", description="Выписка зарплат транспортировщиков")
     ],
     "Мастер_админ": [
        BotCommand(command="start", description="Запустить бота"),
@@ -72,7 +73,8 @@ COMMANDS_BY_ROLE = {
        BotCommand(command="export", description="Импорт данных о заказах в Exel"),
        BotCommand(command="admin_panel", description="Панель администратора"),
        BotCommand(command="reload_comand", description="Обновление списка команд"),
-       BotCommand(command="change_role", description="Смена роли")
+       BotCommand(command="change_role", description="Смена роли"),
+       BotCommand(command="drivers_salary", description="Выписка зарплат транспортировщиков")
     ]
 }
 

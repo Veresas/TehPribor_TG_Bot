@@ -354,7 +354,12 @@ async def actionWithRegRquest (callbacke: CallbackQuery, bot: Bot):
             message_id=callbacke.message.message_id)
        await bot.send_message(tgId, text=mes)
 
-
+@router.message(Command("drivers_salary"))
+async def drivers_payment (message: Message):
+       await message.answer("Производится расчет")
+       mes = await rq.get_drivers_payment()
+       await message.answer(mes)
+       
 
 # endregion
 """
