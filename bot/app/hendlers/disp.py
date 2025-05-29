@@ -157,7 +157,7 @@ async def new_order_accept(callback: CallbackQuery, state: FSMContext):
               await rq.alarm_for_drivers(orderId=order_id, bot= callback.bot)
        await state.clear()
        await callback.answer()
-       await callback.message.answer('Заказ успешно добавлен')
+       await callback.message.answer(f'Заказ успешно добавлен. Номер заказа: {order_id}')
 
 @router.callback_query(F.data.startswith('cmd_take_alarm_order:'))
 async def alarm_order_take(callback: CallbackQuery):

@@ -279,7 +279,7 @@ async def acept_complete_take(callback: CallbackQuery, state: FSMContext):
        try:
               if await rq.complete_order(tg_id=data["tg_id"], order_id=int(data["orderId"])):
                      await callback.message.answer(f'Вы завершили заказ: {data["orderId"]}', reply_markup=ReplyKeyboardRemove())
-                     chat_id, mes = await rq.get_user_for_send(orderId=int(data["orderId"]), driver_id=data["tg_id"], action_text="Завершение", optin_mes="Оцените работу транспартировщика: ")
+                     chat_id, mes = await rq.get_user_for_send(orderId=int(data["orderId"]), driver_id=data["tg_id"], action_text="Завершение", optin_mes="Оцените работу транспортировщика: ")
                      await callback.message.bot.send_message(chat_id=chat_id, text=mes, reply_markup=await kb.rateKey(data["orderId"]), parse_mode="HTML")
                      await state.clear()
               else:
