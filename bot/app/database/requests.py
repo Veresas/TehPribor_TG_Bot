@@ -762,11 +762,11 @@ async def export_diagrama(session,
     fig1.suptitle(period_str, fontsize=16, fontweight='bold')
     plt.subplots_adjust(left=0.1, right=0.65, top=0.95, bottom=0.1, hspace=0.3)
 
-    fig2, (ax3, ax4) = plt.subplots(2, 1, figsize=(35, 15), height_ratios=[1, 1])
+    fig2, (ax3, ax4) = plt.subplots(2, 1, figsize=(35, 19), height_ratios=[1, 1])
     fig2.suptitle(period_str, fontsize=16, fontweight='bold')
     plt.subplots_adjust(left=0.1, right=0.65, top=0.95, bottom=0.1, hspace=0.3)
 
-
+    fig3 = plt.figure(figsize=(12, 8))
 
     driver_cargo.plot(kind='bar', stacked=True, ax=ax1, color=plt.cm.Set3(range(len(driver_cargo.columns))), edgecolor='black')
     ax1.set_title("Количество заказов по водителям с разбиением по типам грузов")
@@ -799,26 +799,36 @@ async def export_diagrama(session,
         yval = bar.get_height()
         ax2.text(bar.get_x() + bar.get_width()/2, yval + 0.5, f"{yval:.1f}", ha='center', va='bottom')
 
-    cargo_stats = pd.DataFrame({"Количество": cargo_counts})
-    cargo_table_data = [["Группа груза", "Количество"]] + cargo_stats.reset_index().values.tolist()
-    cargo_table = plt.table(cellText=cargo_table_data,
-                           colWidths=[0.15, 0.1],
-                           loc='right',
-                           bbox=[1.35, 0.55, 0.45, 0.45])  # Справа от верхней диаграммы
-    cargo_table.auto_set_font_size(False)
-    cargo_table.set_fontsize(10)
-    cargo_table.auto_set_column_width([0, 1])
+    ax_table = fig3.add_subplot(111)
+    ax_table.axis('off')  # Скрываем оси
 
+    cargo_stats = pd.DataFrame({"Количество": cargo_counts})
+    # Таблица по грузам (верхняя часть)
+    cargo_table = ax_table.table(
+        cellText=[["Группа груза", "Количество"]] + cargo_stats.reset_index().values.tolist(),
+        colWidths=[0.4, 0.2],
+        cellLoc='center',
+        bbox=[0.1, 0.55, 0.8, 0.4]  # x, y, width, height
+    )
+
+    # Таблица по исполнителям (нижняя часть)
     driver_stats = pd.DataFrame({"Количество": driver_counts})
-    driver_table_data = [["ФИО исполнителя", "Количество"]] + driver_stats.reset_index().values.tolist()
-    driver_table = plt.table(cellText=driver_table_data,
-                            colWidths=[0.15, 0.1],
-                            loc='right',
-                            bbox=[1.35, 0.05, 0.45, 0.45])  # Справа от нижней диаграммы
-    driver_table.auto_set_font_size(False)
-    driver_table.set_fontsize(10)
-    driver_table.auto_set_column_width([0, 1])
-    
+    driver_table = ax_table.table(
+        cellText=[["ФИО исполнителя", "Количество"]] + driver_stats.reset_index().values.tolist(),
+        colWidths=[0.4, 0.2],
+        cellLoc='center',
+        bbox=[0.1, 0.05, 0.8, 0.4]
+    )
+
+    # Стилизация таблиц
+    for table in [cargo_table, driver_table]:
+        table.auto_set_font_size(False)
+        table.set_fontsize(12)
+        for (row, col), cell in table.get_celld().items():
+            if row == 0:  # Заголовки
+                cell.set_facecolor('#f0f0f0')
+                cell.set_text_props(weight='bold')
+
     ax1.legend(title="Группа груза", bbox_to_anchor=(1.0, 1), loc='upper left')
 
     plot_grouped_bars(ax3, from_stats, "Поступление заказов из цехов по типам", "Цех (откуда)", "tab20")    
@@ -837,9 +847,14 @@ async def export_diagrama(session,
     plt.close(fig2)
     hist_file2.seek(0)
 
+    hist_file3 = BytesIO()
+    fig3.savefig(hist_file3, format='png', bbox_inches='tight')
+    plt.close(fig3)
+    hist_file3.seek(0)
     return [
         BufferedInputFile(hist_file1.getvalue(), filename=f"Водители_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"),
         BufferedInputFile(hist_file2.getvalue(), filename=f"Цеха_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"),
+        BufferedInputFile(hist_file3.getvalue(), filename=f"Легеда к диаграмме цехов"),
     ]
 
 # Получаем данные с учетом корпусов
