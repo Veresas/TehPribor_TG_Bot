@@ -1,3 +1,4 @@
+import numpy as np
 from app.database.models import async_session
 import app.database.models as tb
 from sqlalchemy import select, and_, update, func
@@ -650,7 +651,7 @@ async def notiNewOrders(session: AsyncSession,  bot: Bot):
         for driver in drivers:
             try:
 
-                await bot.send_message(driver.tgId, f'Доступно {countOrders} заказов')
+                await bot.send_message(driver.tgId, f'Доступно {countOrders} заказ(ов)')
             except Exception as e:
                 logging.error(f"Ошибка отправки сообщения для водителя {driver.tgId}: {e}")
 
@@ -682,14 +683,16 @@ async def dayEnd(session: AsyncSession, bot: Bot):
 async def export_diagrama(session, 
     date_from: datetime = None,
     date_to: datetime = datetime.today() + timedelta(days = 1)) -> BufferedInputFile:
-    print("date_from: ", date_from)
-    print("date_to: ", date_to)
     stmt = (
         select(tb.Order)
-        .options(joinedload(tb.Order.cargoType))
-        .options(joinedload(tb.Order.executor))
-        .options(joinedload(tb.Order.depart_loc_ref).joinedload(tb.DepartmentBuilding.department).joinedload(tb.Department.departmentType))
-        .options(joinedload(tb.Order.goal_loc_ref).joinedload(tb.DepartmentBuilding.department).joinedload(tb.Department.departmentType))
+        .options(
+            joinedload(tb.Order.cargoType),
+            joinedload(tb.Order.executor),
+            joinedload(tb.Order.depart_loc_ref).joinedload(tb.DepartmentBuilding.department).joinedload(tb.Department.departmentType),
+            joinedload(tb.Order.depart_loc_ref).joinedload(tb.DepartmentBuilding.building),
+            joinedload(tb.Order.goal_loc_ref).joinedload(tb.DepartmentBuilding.department).joinedload(tb.Department.departmentType),
+            joinedload(tb.Order.goal_loc_ref).joinedload(tb.DepartmentBuilding.building)
+        )
         .where(and_(
             tb.Order.orderStatusId == 3,
             tb.Order.completion_time.isnot(None),
@@ -701,8 +704,6 @@ async def export_diagrama(session,
 
     result = await session.execute(stmt)
     orders = result.scalars().all()
-    for order in orders:
-        print(order.idOrder)
     if not orders:
         raise ValueError("Нет выполненных заказов за указанный период")
     
@@ -750,21 +751,18 @@ async def export_diagrama(session,
         and o.cargoType
     ]
 
-    from_stats = pd.crosstab(
-        [o.depart_loc_ref.department.department_name for o in orders_from_workshops],
-        [o.cargoType.cargoTypeName for o in orders_from_workshops]
-    )
+    from_df = get_order_data(orders_from_workshops, 'depart_loc_ref')
+    to_df = get_order_data(orders_to_workshops, 'goal_loc_ref')
 
-    to_stats = pd.crosstab(
-        [o.goal_loc_ref.department.department_name for o in orders_to_workshops],
-        [o.cargoType.cargoTypeName for o in orders_to_workshops]
-    )
+    from_stats = create_hierarchical_stats(from_df)
+    to_stats = create_hierarchical_stats(to_df)
+
     period_str = f"Период: {date_from.strftime('%d.%m.%Y')} — {date_to.strftime('%d.%m.%Y')}"
     fig1, (ax1, ax2) = plt.subplots(2, 1, figsize=(17, 19), height_ratios=[1, 1])
     fig1.suptitle(period_str, fontsize=16, fontweight='bold')
     plt.subplots_adjust(left=0.1, right=0.65, top=0.95, bottom=0.1, hspace=0.3)
 
-    fig2, (ax3, ax4) = plt.subplots(2, 1, figsize=(21, 12), height_ratios=[1, 1])
+    fig2, (ax3, ax4) = plt.subplots(2, 1, figsize=(26, 15), height_ratios=[1, 1])
     fig2.suptitle(period_str, fontsize=16, fontweight='bold')
     plt.subplots_adjust(left=0.1, right=0.65, top=0.95, bottom=0.1, hspace=0.3)
 
@@ -823,39 +821,8 @@ async def export_diagrama(session,
     
     ax1.legend(title="Группа груза", bbox_to_anchor=(1.0, 1), loc='upper left')
 
-    from_stats.plot(kind="bar", stacked=True, ax=ax3, colormap="tab20", edgecolor='black')
-
-    for i, (index, row) in enumerate(from_stats.iterrows()):
-        cumulative = 0
-        for j, value in enumerate(row):
-            if value > 0:
-                cumulative += value
-                ax3.text(i, cumulative - value / 2, str(int(value)), ha='center', va='center', fontsize=8, color='black')
-        ax3.text(i, cumulative + 0.5, str(int(row.sum())), ha='center', va='bottom', fontsize=9, fontweight='bold')   
-    # 📊 3-я диаграмма: поступление заказов из цехов по типам
-    ax3.set_title("Поступление заказов из цехов по типам")
-    ax3.set_xlabel("Цех (откуда)")
-    ax3.set_ylabel("Количество")
-    ax3.tick_params(axis='x', rotation=45)
-    ax3.grid(True, axis='y')
-    ax3.legend(title="Группа груза", bbox_to_anchor=(1.05, 1), loc='upper left')
-
-    for i, (index, row) in enumerate(to_stats.iterrows()):
-        cumulative = 0
-        for j, value in enumerate(row):
-            if value > 0:
-                cumulative += value
-                ax4.text(i, cumulative - value / 2, str(int(value)), ha='center', va='center', fontsize=8, color='black')
-        ax4.text(i, cumulative + 0.5, str(int(row.sum())), ha='center', va='bottom', fontsize=9, fontweight='bold')
-    
-    # 📊 4-я диаграмма: поступление заказов в цеха по типам
-    to_stats.plot(kind="bar", stacked=True, ax=ax4, colormap="tab20c", edgecolor='black')
-    ax4.set_title("Поступление заказов в цеха по типам")
-    ax4.set_xlabel("Цех (куда)")
-    ax4.set_ylabel("Количество")
-    ax4.tick_params(axis='x', rotation=45)
-    ax4.grid(True, axis='y')
-    ax4.legend(title="Группа груза", bbox_to_anchor=(1.05, 1), loc='upper left')
+    plot_grouped_bars(ax3, from_stats, "Поступление заказов из цехов по типам", "Цех (откуда)", "tab20")    
+    plot_grouped_bars(ax4, to_stats, "Поступление заказов в цеха по типам", "Цех (куда)", "tab20c")
 
     plt.tight_layout()
 
@@ -874,6 +841,108 @@ async def export_diagrama(session,
         BufferedInputFile(hist_file1.getvalue(), filename=f"Водители_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"),
         BufferedInputFile(hist_file2.getvalue(), filename=f"Цеха_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"),
     ]
+
+# Получаем данные с учетом корпусов
+def get_order_data(orders, location_attr):
+    data = []
+    for order in orders:
+        loc = getattr(order, location_attr)
+        if loc:  # Если есть привязка к месту
+            building_name = loc.building.building_name if loc.building else "Без корпуса"
+            department_name = loc.department.department_name if loc.department else "Без цеха"
+            cargo_type = order.cargoType.cargoTypeName if order.cargoType else "Без типа"
+            
+            data.append({
+                'Корпус': building_name,
+                'Цех': department_name,
+                'Тип груза': cargo_type,
+                'Количество': 1
+            })
+    return pd.DataFrame(data)
+
+def create_hierarchical_stats(df):
+    if df.empty:
+      return pd.DataFrame()
+    
+    # Группируем по корпусам, цехам и типам грузов
+    grouped = df.groupby(['Корпус', 'Цех', 'Тип груза']).size().unstack(fill_value=0)
+    
+    # Сортируем по корпусам и цехам
+    return grouped.sort_index(level=[0, 1])
+
+def plot_grouped_bars(ax, stats_df, title, xlabel, colormap):
+    if stats_df.empty:
+        ax.text(0.5, 0.5, 'Нет данных', ha='center', va='center')
+        ax.set_title(title)
+        return
+    
+    # Подготовка позиций
+    positions = []
+    xtick_labels = []
+    corpus_labels = []
+    current_pos = 0
+    
+    # Группируем по корпусам
+    for corpus_name, corpus_group in stats_df.groupby(level=0):
+        n_shops = len(corpus_group)
+        shop_positions = range(current_pos, current_pos + n_shops)
+        positions.extend(shop_positions)
+        xtick_labels.extend(corpus_group.index.get_level_values(1).tolist())
+        
+        # Центр для подписи корпуса
+        corpus_center = (shop_positions[0] + shop_positions[-1]) / 2
+        corpus_labels.append((corpus_center, corpus_name))
+        
+        current_pos += n_shops + 1  # Добавляем промежуток между корпусами
+    
+    # Рисуем столбцы
+    bottom = np.zeros(len(positions))
+    colors = plt.get_cmap(colormap, len(stats_df.columns)).colors
+    
+    for i, col in enumerate(stats_df.columns):
+        values = []
+        for corpus_name, corpus_group in stats_df.groupby(level=0):
+            values.extend(corpus_group[col].values)
+        
+        ax.bar(positions, values, bottom=bottom, 
+               color=colors[i], 
+               edgecolor='black',
+               label=col)
+        bottom += np.array(values)
+    
+    # Настройка осей
+    ax.set_title(title)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel("Количество")
+    ax.set_xticks(positions)
+    ax.set_xticklabels(xtick_labels, rotation=45, ha="right")
+    ax.grid(True, axis='y')
+    ax.legend(title="Тип груза", bbox_to_anchor=(1.05, 1), loc='upper left')
+    
+    # Подписи корпусов
+    for center, corpus_name in corpus_labels:
+        ax.text(center, -0.1 * ax.get_ylim()[1], corpus_name, 
+                ha='center', va='top',
+                fontsize=10, fontweight='bold', color='darkblue')
+    
+    # Подписи значений
+    for i, pos in enumerate(positions):
+        total = bottom[i]
+        if total > 0:
+            ax.text(pos, total + 0.5, str(int(total)), 
+                    ha='center', va='bottom',
+                    fontsize=9, fontweight='bold')
+            
+            # Подписи внутри сегментов
+            cumulative = 0
+            for j, col in enumerate(stats_df.columns):
+                value = stats_df.iloc[i % len(stats_df), j] if i < len(stats_df) else 0
+                if value > 0:
+                    cumulative += value
+                    ax.text(pos, cumulative - value/2, str(int(value)),
+                            ha='center', va='center',
+                            fontsize=8, color='black')
+
 
 @connection
 async def get_user_id(session: AsyncSession, tg_id: int) -> int:
