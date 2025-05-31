@@ -762,7 +762,7 @@ async def export_diagrama(session,
     fig1.suptitle(period_str, fontsize=16, fontweight='bold')
     plt.subplots_adjust(left=0.1, right=0.65, top=0.95, bottom=0.1, hspace=0.3)
 
-    fig2, (ax3, ax4) = plt.subplots(2, 1, figsize=(26, 15), height_ratios=[1, 1])
+    fig2, (ax3, ax4) = plt.subplots(2, 1, figsize=(35, 15), height_ratios=[1, 1])
     fig2.suptitle(period_str, fontsize=16, fontweight='bold')
     plt.subplots_adjust(left=0.1, right=0.65, top=0.95, bottom=0.1, hspace=0.3)
 
