@@ -153,6 +153,8 @@ async def get_order_keys(session: AsyncSession, dateTime: datetime = None, tg_id
                 role_condition = tb.Order.driverId == user.idUser
             case 3:
                 role_condition= tb.Order.dispatcherId == user.idUser
+            case 4:
+                role_condition= tb.Order.dispatcherId == user.idUser
             case _:
                 raise ValueError(f"Роль {user.roleId} не поддерживается")
         
@@ -680,7 +682,8 @@ async def dayEnd(session: AsyncSession, bot: Bot):
             logging.error(f"Ошибка отправки сообщения для заказа {order.idOrder}: {e}")
 
 @connection
-async def export_diagrama(session, 
+async def export_diagrama(session,
+    diogramType,
     date_from: datetime = None,
     date_to: datetime = datetime.today() + timedelta(days = 1)) -> BufferedInputFile:
     stmt = (
@@ -754,8 +757,11 @@ async def export_diagrama(session,
     from_df = get_order_data(orders_from_workshops, 'depart_loc_ref')
     to_df = get_order_data(orders_to_workshops, 'goal_loc_ref')
 
-    from_stats = create_hierarchical_stats(from_df)
-    to_stats = create_hierarchical_stats(to_df)
+    from_stats = create_hierarchical_stats(from_df, True)
+    to_stats = create_hierarchical_stats(to_df, True)
+
+    from_stats_short = create_hierarchical_stats(from_df, False)
+    to_stats_short = create_hierarchical_stats(to_df, False)
 
     period_str = f"Период: {date_from.strftime('%d.%m.%Y')} — {date_to.strftime('%d.%m.%Y')}"
     fig1, (ax1, ax2) = plt.subplots(2, 1, figsize=(17, 19), height_ratios=[1, 1])
@@ -767,6 +773,10 @@ async def export_diagrama(session,
     plt.subplots_adjust(left=0.1, right=0.65, top=0.95, bottom=0.1, hspace=0.3)
 
     fig3 = plt.figure(figsize=(12, 8))
+
+    fig4, (ax5, ax6) = plt.subplots(2, 1, figsize=(35, 19), height_ratios=[1, 1])
+    fig4.suptitle(period_str, fontsize=16, fontweight='bold')
+    plt.subplots_adjust(left=0.1, right=0.65, top=0.95, bottom=0.1, hspace=0.3)
 
     driver_cargo.plot(kind='bar', stacked=True, ax=ax1, color=plt.cm.Set3(range(len(driver_cargo.columns))), edgecolor='black')
     ax1.set_title("Количество заказов по водителям с разбиением по типам грузов")
@@ -831,9 +841,12 @@ async def export_diagrama(session,
 
     ax1.legend(title="Группа груза", bbox_to_anchor=(1.0, 1), loc='upper left')
 
-    plot_grouped_bars(ax3, from_stats, "Поступление заказов из цехов по типам", "Цех (откуда)", "tab20")    
-    plot_grouped_bars(ax4, to_stats, "Поступление заказов в цеха по типам", "Цех (куда)", "tab20c")
+    plot_grouped_bars(ax3, from_stats, "Поступление заказов из цехов по типам (c корпусами)", "Цех (откуда)", "tab20", True)    
+    plot_grouped_bars(ax4, to_stats, "Поступление заказов в цеха по типам (c корпусами)", "Цех (куда)", "tab20c", True)
 
+    plot_grouped_bars(ax5, from_stats_short, "Поступление заказов из цехов по типам", "Цех (откуда)", "tab20", True)
+    plot_grouped_bars(ax6, to_stats_short, "Поступление заказов в цеха по типам", "Цех (куда)", "tab20c", True)
+ 
     plt.tight_layout()
 
     hist_file1 = BytesIO()
@@ -851,11 +864,27 @@ async def export_diagrama(session,
     fig3.savefig(hist_file3, format='png', bbox_inches='tight')
     plt.close(fig3)
     hist_file3.seek(0)
-    return [
-        BufferedInputFile(hist_file1.getvalue(), filename=f"Водители_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"),
-        BufferedInputFile(hist_file2.getvalue(), filename=f"Цеха_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"),
-        BufferedInputFile(hist_file3.getvalue(), filename=f"Легеда к диаграмме цехов"),
-    ]
+
+    hist_file4 = BytesIO()
+    fig4.savefig(hist_file4, format='png', bbox_inches='tight')
+    plt.close(fig4)
+    hist_file4.seek(0)
+    result = []
+    match diogramType:
+        case "drivers":
+            result.append(BufferedInputFile(hist_file1.getvalue(), filename=f"Водители_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"))
+        case "depBuild":
+            result.append(BufferedInputFile(hist_file2.getvalue(), filename=f"Цеха(с корпусами)_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"))
+            result.append(BufferedInputFile(hist_file3.getvalue(), filename=f"Легеда к диаграмме цехов"))
+        case "dep":
+            result.append(BufferedInputFile(hist_file4.getvalue(), filename=f"Цеха_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"))
+            result.append(BufferedInputFile(hist_file3.getvalue(), filename=f"Легеда к диаграмме цехов"))
+        case "all":
+            result.append(BufferedInputFile(hist_file1.getvalue(), filename=f"Водители_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"))
+            result.append(BufferedInputFile(hist_file2.getvalue(), filename=f"Цеха_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"))
+            result.append(BufferedInputFile(hist_file4.getvalue(), filename=f"Цеха_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"))
+            result.append(BufferedInputFile(hist_file3.getvalue(), filename=f"Легеда к диаграмме цехов"))
+    return result
 
 # Получаем данные с учетом корпусов
 def get_order_data(orders, location_attr):
@@ -875,17 +904,20 @@ def get_order_data(orders, location_attr):
             })
     return pd.DataFrame(data)
 
-def create_hierarchical_stats(df):
+def create_hierarchical_stats(df, is_buildings):
     if df.empty:
       return pd.DataFrame()
     
-    # Группируем по корпусам, цехам и типам грузов
-    grouped = df.groupby(['Корпус', 'Цех', 'Тип груза']).size().unstack(fill_value=0)
+    if(is_buildings):
+        # Группируем по корпусам, цехам и типам грузов
+        grouped = df.groupby(['Корпус', 'Цех', 'Тип груза']).size().unstack(fill_value=0)
+    else:
+        grouped = df.groupby(['Цех', 'Тип груза']).size().unstack(fill_value=0)
     
     # Сортируем по корпусам и цехам
     return grouped.sort_index(level=[0, 1])
 
-def plot_grouped_bars(ax, stats_df, title, xlabel, colormap):
+def plot_grouped_bars(ax, stats_df, title, xlabel, colormap, is_buildings):
     if stats_df.empty:
         ax.text(0.5, 0.5, 'Нет данных', ha='center', va='center')
         ax.set_title(title)
@@ -897,18 +929,19 @@ def plot_grouped_bars(ax, stats_df, title, xlabel, colormap):
     corpus_labels = []
     current_pos = 0
     
-    # Группируем по корпусам
-    for corpus_name, corpus_group in stats_df.groupby(level=0):
-        n_shops = len(corpus_group)
-        shop_positions = range(current_pos, current_pos + n_shops)
-        positions.extend(shop_positions)
-        xtick_labels.extend(corpus_group.index.get_level_values(1).tolist())
-        
-        # Центр для подписи корпуса
-        corpus_center = (shop_positions[0] + shop_positions[-1]) / 2
-        corpus_labels.append((corpus_center, corpus_name))
-        
-        current_pos += n_shops + 1  # Добавляем промежуток между корпусами
+    if(is_buildings):
+        # Группируем по корпусам
+        for corpus_name, corpus_group in stats_df.groupby(level=0):
+            n_shops = len(corpus_group)
+            shop_positions = range(current_pos, current_pos + n_shops)
+            positions.extend(shop_positions)
+            xtick_labels.extend(corpus_group.index.get_level_values(1).tolist())
+            
+            # Центр для подписи корпуса
+            corpus_center = (shop_positions[0] + shop_positions[-1]) / 2
+            corpus_labels.append((corpus_center, corpus_name))
+            
+            current_pos += n_shops + 1  # Добавляем промежуток между корпусами
     
     # Рисуем столбцы
     bottom = np.zeros(len(positions))

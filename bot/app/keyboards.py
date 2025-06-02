@@ -101,7 +101,14 @@ privateCatalogKey = InlineKeyboardMarkup(inline_keyboard = [
 
 exportchoice = InlineKeyboardMarkup(inline_keyboard = [
     [InlineKeyboardButton(text='Заказы', callback_data=f'export:orders'),
-     InlineKeyboardButton(text='Транспортировщики', callback_data=f'export:drivers')]
+     InlineKeyboardButton(text='Диаграммы', callback_data=f'export:diograms')]
+])
+
+diogramChoise = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text='Заказы по водителям', callback_data='diogram:drivers'),
+     InlineKeyboardButton(text='Поступление из цехов и участков', callback_data='diogram:depBuild')],
+    [InlineKeyboardButton(text='Поступление из цехов', callback_data='diogram:dep'),
+     InlineKeyboardButton(text='Все', callback_data='diogram:all')]
 ])
 
 publicCatalogKey = InlineKeyboardMarkup(inline_keyboard = [

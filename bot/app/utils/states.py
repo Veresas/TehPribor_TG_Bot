@@ -43,6 +43,7 @@ class EditOrder(StatesGroup):
 
 class ExportOrder(StatesGroup):
        choise = State()
+       diogram = State()
        period_set = State()
        start = State()
 

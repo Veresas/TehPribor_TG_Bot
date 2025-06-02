@@ -26,6 +26,16 @@ async def exp_type_choise(callback: CallbackQuery, state: FSMContext):
        exp_type = callback.data.split(':')[1]
        await callback.answer()
        await state.update_data(expType = exp_type)
+       if (exp_type == "diograms"):
+              await callback.message.answer("Какую диаграмму отобразить?", reply_markup=kb.diogramChoise)
+       else:
+              await callback.message.answer("За какой период выгрузить данные?", reply_markup=kb.exp_orders_kb)
+
+@router.callback_query(st.ExportOrder.choise, F.data.startswith("diogram:"))
+async def exp_diogram(callback: CallbackQuery, state: FSMContext):
+       diogramType = callback.data.split(':')[1]
+       await callback.answer()
+       await state.update_data(diogramType = diogramType)
        await callback.message.answer("За какой период выгрузить данные?", reply_markup=kb.exp_orders_kb)
 
 @router.message(st.ExportOrder.choise, F.text.lower().in_(["день ☀️", "неделя 📅", "месяц 🌙", "год 🗓️", "свой ✏️"]))
@@ -60,7 +70,6 @@ async def status_order_catalog(message: Message, state:FSMContext):
        else:
               await message.answer("Некорректный формат введных данных. Повторите еще раз")
 
-
 async def make_export(message: Message, state:FSMContext, date_from, date_to = None):
        data = await state.get_data()
        if type(date_from) != datetime:
@@ -74,8 +83,8 @@ async def make_export(message: Message, state:FSMContext, date_from, date_to = N
               if data["expType"] == "orders":
                      file = await rq.export_orders_to_excel(date_from=date_from, date_to=date_to)
                      await message.answer_document(file, caption="Выгрузка заказов", reply_markup=ReplyKeyboardRemove())
-              if data["expType"] == "drivers":
-                     diograms = await rq.export_diagrama(date_from=date_from, date_to=date_to)
+              if data["expType"] == "diograms":
+                     diograms = await rq.export_diagrama(diogramType = data["diogramType"], date_from=date_from, date_to=date_to)
                      for diogram in diograms:           
                             await message.answer_photo(diogram, reply_markup=ReplyKeyboardRemove())
        except Exception as e:
@@ -83,6 +92,7 @@ async def make_export(message: Message, state:FSMContext, date_from, date_to = N
                      await message.answer(f"В заданный период данных нет")
               else:
                      await message.answer(f"Произошла ошибка при экспорте. Попробуйте позже")
+
 #endregion
 
 @router.callback_query(
