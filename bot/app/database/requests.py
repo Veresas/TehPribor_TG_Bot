@@ -268,6 +268,9 @@ async def get_user(session: AsyncSession, tg_id=None, id= None):
         user = await session.scalar(select(tb.User).where(tb.User.tgId == tg_id))
     if id != None:
         user = await session.scalar(select(tb.User).where(tb.User.idUser == id))
+    if user is None:
+        return None
+    
     await session.refresh(
         user,
         attribute_names=[
@@ -1265,6 +1268,8 @@ async def get_driver_rate(session: AsyncSession, driverId: int):
     average_rate = round(average_rate, 2) if average_rate is not None else 0.0
     count = count or 0
     return average_rate, count
+
+@connection
 async def get_admins_for_alarm(session: AsyncSession):
     stmt = (
         select(tb.User)
