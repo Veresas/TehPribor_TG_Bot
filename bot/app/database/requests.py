@@ -684,11 +684,279 @@ async def dayEnd(session: AsyncSession, bot: Bot):
         except Exception as e:
             logging.error(f"Ошибка отправки сообщения для заказа {order.idOrder}: {e}")
 
+def create_figure_with_subplots(n_subplots=1, figsize=(17, 19), height_ratios=None):
+    """Создает фигуру с подграфиками"""
+    if height_ratios is None:
+        height_ratios = [1] * n_subplots
+    fig, axes = plt.subplots(n_subplots, 1, figsize=figsize, height_ratios=height_ratios)
+    plt.subplots_adjust(left=0.1, right=0.65, top=0.95, bottom=0.1, hspace=0.3)
+    return fig, axes
+
+def save_figure_to_buffer(fig):
+    """Сохраняет фигуру в буфер"""
+    buffer = BytesIO()
+    fig.savefig(buffer, format='png', bbox_inches='tight')
+    plt.close(fig)
+    buffer.seek(0)
+    return buffer
+
+def create_driver_stats(orders):
+    """Создает статистику по водителям"""
+    data_to_time = [
+        {
+            "Водитель": order.executor.fio,
+            "Время выполнения (сек)": (
+                (order.completion_time - order.pickup_time).total_seconds()
+                if order.completion_time.date() == order.pickup_time.date()
+                else None
+            )
+        }
+        for order in orders 
+        if order.executor and order.cargoType and order.completion_time.date() == order.pickup_time.date()
+    ]
+
+    data_to_order_count = [
+        {
+            "Водитель": order.executor.fio,
+            "Группа груза": order.cargoType.cargoTypeName
+        }
+        for order in orders 
+        if order.executor and order.cargoType
+    ]
+
+    df_time = pd.DataFrame(data_to_time)
+    df_orders = pd.DataFrame(data_to_order_count)
+    
+    return {
+        'driver_time': df_time.groupby("Водитель")["Время выполнения (сек)"].mean(),
+        'driver_cargo': pd.crosstab(df_orders["Водитель"], df_orders["Группа груза"]),
+        'driver_counts': df_orders["Водитель"].value_counts(),
+        'cargo_counts': df_orders["Группа груза"].value_counts()
+    }
+
+def plot_driver_stats(ax1, ax2, stats):
+    """Строит графики статистики водителей"""
+    # График распределения заказов по типам грузов
+    stats['driver_cargo'].plot(
+        kind='bar', 
+        stacked=True, 
+        ax=ax1, 
+        color=plt.cm.Set3(range(len(stats['driver_cargo'].columns))), 
+        edgecolor='black'
+    )
+    ax1.set_title("Количество заказов по водителям с разбиением по типам грузов")
+    ax1.set_xlabel("Водитель")
+    ax1.set_ylabel("Количество заказов")
+    ax1.tick_params(axis='x', rotation=45)
+    ax1.grid(True, axis='y')
+    ax1.legend(title="Группа груза", bbox_to_anchor=(1.05, 1), loc='upper left')
+
+    # Добавляем значения на столбцы
+    for i, driver in enumerate(stats['driver_cargo'].index):
+        cumulative_height = 0
+        for j, cargo_type in enumerate(stats['driver_cargo'].columns):
+            value = stats['driver_cargo'].loc[driver, cargo_type]
+            if value > 0:
+                cumulative_height += value
+                text_y = cumulative_height - (value / 2)
+                ax1.text(i, text_y, int(value), ha='center', va='center', fontsize=8, color='black')
+
+        total = stats['driver_cargo'].sum(axis=1)[driver]
+        ax1.text(i, total + 0.5, int(total), ha='center', va='bottom')
+
+    # График среднего времени выполнения
+    bars = ax2.bar(
+        stats['driver_time'].index, 
+        stats['driver_time'].values / 60,  # Переводим секунды в минуты
+        color='lightgreen', 
+        edgecolor='black'
+    )
+    ax2.set_title("Среднее время выполнения заказов по водителям (в минутах)")
+    ax2.set_xlabel("Водитель")
+    ax2.set_ylabel("Среднее время (мин)")
+    ax2.tick_params(axis='x', rotation=45)
+    ax2.grid(True, axis='y')
+    
+    for bar in bars:
+        yval = bar.get_height()
+        ax2.text(bar.get_x() + bar.get_width()/2, yval + 0.5, f"{yval:.1f}", ha='center', va='bottom')
+
+def create_legend_table(fig, cargo_counts, driver_counts):
+    """Создает таблицу с легендой"""
+    ax_table = fig.add_subplot(111)
+    ax_table.axis('off')
+
+    # Таблица по грузам
+    cargo_stats = pd.DataFrame({"Количество": cargo_counts})
+    cargo_table = ax_table.table(
+        cellText=[["Группа груза", "Количество"]] + cargo_stats.reset_index().values.tolist(),
+        colWidths=[0.4, 0.2],
+        cellLoc='center',
+        bbox=[0.1, 0.55, 0.8, 0.4]
+    )
+
+    # Таблица по исполнителям
+    driver_stats = pd.DataFrame({"Количество": driver_counts})
+    driver_table = ax_table.table(
+        cellText=[["ФИО исполнителя", "Количество"]] + driver_stats.reset_index().values.tolist(),
+        colWidths=[0.4, 0.2],
+        cellLoc='center',
+        bbox=[0.1, 0.05, 0.8, 0.4]
+    )
+
+    # Стилизация таблиц
+    for table in [cargo_table, driver_table]:
+        table.auto_set_font_size(False)
+        table.set_fontsize(12)
+        for (row, col), cell in table.get_celld().items():
+            if row == 0:
+                cell.set_facecolor('#f0f0f0')
+                cell.set_text_props(weight='bold')
+
+def get_workshop_orders(orders, location_attr):
+    """Фильтрует заказы для цехов"""
+    return [
+        o for o in orders
+        if getattr(o, location_attr) and
+        getattr(o, location_attr).department and
+        getattr(o, location_attr).department.departmentType and
+        getattr(o, location_attr).department.departmentType.department_type_id == 1
+        and o.cargoType
+    ]
+
+def create_driver_diagram(period_str: str, driver_stats: dict) -> BytesIO:
+    """Создает диаграмму по водителям"""
+    fig, (ax1, ax2) = create_figure_with_subplots(2, (17, 19), [1, 1])
+    fig.suptitle(period_str, fontsize=16, fontweight='bold')
+    plot_driver_stats(ax1, ax2, driver_stats)
+    return save_figure_to_buffer(fig)
+
+def create_departments_with_buildings_diagram(period_str: str, from_stats: pd.DataFrame, to_stats: pd.DataFrame) -> BytesIO:
+    """Создает диаграмму по цехам с корпусами"""
+    fig, (ax1, ax2) = create_figure_with_subplots(2, (35, 19), [1, 1])
+    fig.suptitle(period_str, fontsize=16, fontweight='bold')
+    plot_grouped_bars(ax1, from_stats, "Поступление заказов из цехов по типам (c корпусами)", "Цех (откуда)", "tab20", True)
+    plot_grouped_bars(ax2, to_stats, "Поступление заказов в цеха по типам (c корпусами)", "Цех (куда)", "tab20c", True)
+    return save_figure_to_buffer(fig)
+
+def create_departments_diagram(period_str: str, from_stats: pd.DataFrame, to_stats: pd.DataFrame) -> BytesIO:
+    """Создает диаграмму по цехам без корпусов"""
+    fig, (ax1, ax2) = create_figure_with_subplots(2, (35, 19), [1, 1])
+    fig.suptitle(period_str, fontsize=16, fontweight='bold')
+    plot_grouped_bars(ax1, from_stats, "Поступление заказов из цехов по типам", "Цех (откуда)", "tab20", False)
+    plot_grouped_bars(ax2, to_stats, "Поступление заказов в цеха по типам", "Цех (куда)", "tab20c", False)
+    return save_figure_to_buffer(fig)
+
+def create_legend_diagram(cargo_counts: pd.Series, driver_counts: pd.Series) -> BytesIO:
+    """Создает диаграмму с легендой"""
+    fig = plt.figure(figsize=(12, 8))
+    create_legend_table(fig, cargo_counts, driver_counts)
+    return save_figure_to_buffer(fig)
+
+def create_hierarchical_stats(df: pd.DataFrame, is_buildings: bool) -> pd.DataFrame:
+    """Создает иерархическую статистику"""
+    if df.empty:
+        return pd.DataFrame()
+    
+    if is_buildings:
+        # Группируем по корпусам, цехам и типам грузов
+        grouped = df.groupby(['Корпус', 'Цех', 'Тип груза']).size().unstack(fill_value=0)
+        return grouped.sort_index(level=[0, 1])
+    else:
+        # Группируем только по цехам и типам грузов
+        grouped = df.groupby(['Цех', 'Тип груза']).size().unstack(fill_value=0)
+        return grouped.sort_index()
+
+def plot_grouped_bars(ax, stats_df: pd.DataFrame, title: str, xlabel: str, colormap: str, is_buildings: bool):
+    """Строит сгруппированные столбчатые диаграммы"""
+    if stats_df.empty:
+        ax.text(0.5, 0.5, 'Нет данных', ha='center', va='center')
+        ax.set_title(title)
+        return
+    
+    # Подготовка позиций
+    positions = []
+    xtick_labels = []
+    corpus_labels = []
+    current_pos = 0
+    
+    if is_buildings:
+        # Группируем по корпусам
+        for corpus_name, corpus_group in stats_df.groupby(level=0):
+            n_shops = len(corpus_group)
+            shop_positions = range(current_pos, current_pos + n_shops)
+            positions.extend(shop_positions)
+            xtick_labels.extend(corpus_group.index.get_level_values(1).tolist())
+            
+            # Центр для подписи корпуса
+            corpus_center = (shop_positions[0] + shop_positions[-1]) / 2
+            corpus_labels.append((corpus_center, corpus_name))
+            
+            current_pos += n_shops + 1  # Добавляем промежуток между корпусами
+    else:
+        # Для случая без корпусов используем простую нумерацию
+        positions = range(len(stats_df))
+        xtick_labels = stats_df.index.get_level_values(0).tolist()
+    
+    # Рисуем столбцы
+    bottom = np.zeros(len(positions))
+    colors = plt.get_cmap(colormap, len(stats_df.columns)).colors
+    
+    for i, col in enumerate(stats_df.columns):
+        values = []
+        if is_buildings:
+            for corpus_name, corpus_group in stats_df.groupby(level=0):
+                values.extend(corpus_group[col].values)
+        else:
+            values = stats_df[col].values
+        
+        ax.bar(positions, values, bottom=bottom, 
+               color=colors[i], 
+               edgecolor='black',
+               label=col)
+        bottom += np.array(values)
+    
+    # Настройка осей
+    ax.set_title(title)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel("Количество")
+    ax.set_xticks(positions)
+    ax.set_xticklabels(xtick_labels, rotation=45, ha="right")
+    ax.grid(True, axis='y')
+    ax.legend(title="Тип груза", bbox_to_anchor=(1.05, 1), loc='upper left')
+    
+    # Подписи корпусов (только для случая с корпусами)
+    if is_buildings:
+        for center, corpus_name in corpus_labels:
+            ax.text(center, -0.1 * ax.get_ylim()[1], corpus_name, 
+                    ha='center', va='top',
+                    fontsize=10, fontweight='bold', color='darkblue')
+    
+    # Подписи значений
+    for i, pos in enumerate(positions):
+        total = bottom[i]
+        if total > 0:
+            ax.text(pos, total + 0.5, str(int(total)), 
+                    ha='center', va='bottom',
+                    fontsize=9, fontweight='bold')
+            
+            # Подписи внутри сегментов
+            cumulative = 0
+            for j, col in enumerate(stats_df.columns):
+                value = values[i] if i < len(values) else 0
+                if value > 0:
+                    cumulative += value
+                    ax.text(pos, cumulative - value/2, str(int(value)),
+                            ha='center', va='center',
+                            fontsize=8, color='black')
+
 @connection
 async def export_diagrama(session,
     diogramType,
     date_from: datetime = None,
     date_to: datetime = datetime.today() + timedelta(days = 1)) -> BufferedInputFile:
+    
+    # Получаем данные
     stmt = (
         select(tb.Order)
         .options(
@@ -712,181 +980,56 @@ async def export_diagrama(session,
     orders = result.scalars().all()
     if not orders:
         raise ValueError("Нет выполненных заказов за указанный период")
+
+    # Создаем статистику
+    driver_stats = create_driver_stats(orders)
     
-    dataToTime = [
-        {"Водитель": order.executor.fio,
-         "Время выполнения (сек)": (
-         (order.completion_time - order.pickup_time).total_seconds() 
-         if order.completion_time.date() == order.pickup_time.date() 
-         else None
-        )
-         }
-        for order in orders if order.executor and order.cargoType and order.completion_time.date() == order.pickup_time.date()
-    ]
+    # Получаем заказы для цехов
+    orders_from_workshops = get_workshop_orders(orders, 'depart_loc_ref')
+    orders_to_workshops = get_workshop_orders(orders, 'goal_loc_ref')
 
-    dataToOrderCount = [
-        {"Водитель": order.executor.fio,
-         "Группа груза": order.cargoType.cargoTypeName
-         }
-        for order in orders if order.executor and order.cargoType
-    ]
-
-    df = pd.DataFrame(dataToTime)
-    driver_time = df.groupby("Водитель")["Время выполнения (сек)"].mean()
-
-    df2 = pd.DataFrame(dataToOrderCount)
-    driver_cargo = pd.crosstab(df2["Водитель"], df2["Группа груза"])
-    driver_counts = df2["Водитель"].value_counts()
-    cargo_counts = df2["Группа груза"].value_counts()
-
-    orders_from_workshops = [
-        o for o in orders
-        if o.depart_loc_ref and
-        o.depart_loc_ref.department and
-        o.depart_loc_ref.department.departmentType and
-        o.depart_loc_ref.department.departmentType.department_type_id == 1
-        and o.cargoType
-    ]
-
-    orders_to_workshops = [
-        o for o in orders
-        if o.goal_loc_ref and
-        o.goal_loc_ref.department and
-        o.goal_loc_ref.department.departmentType and
-        o.goal_loc_ref.department.departmentType.department_type_id == 1
-        and o.cargoType
-    ]
-
+    # Создаем DataFrame для цехов
     from_df = get_order_data(orders_from_workshops, 'depart_loc_ref')
     to_df = get_order_data(orders_to_workshops, 'goal_loc_ref')
 
+    # Создаем статистику для цехов
     from_stats = create_hierarchical_stats(from_df, True)
     to_stats = create_hierarchical_stats(to_df, True)
-
     from_stats_short = create_hierarchical_stats(from_df, False)
     to_stats_short = create_hierarchical_stats(to_df, False)
 
     period_str = f"Период: {date_from.strftime('%d.%m.%Y')} — {date_to.strftime('%d.%m.%Y')}"
-    fig1, (ax1, ax2) = plt.subplots(2, 1, figsize=(17, 19), height_ratios=[1, 1])
-    fig1.suptitle(period_str, fontsize=16, fontweight='bold')
-    plt.subplots_adjust(left=0.1, right=0.65, top=0.95, bottom=0.1, hspace=0.3)
 
-    fig2, (ax3, ax4) = plt.subplots(2, 1, figsize=(35, 19), height_ratios=[1, 1])
-    fig2.suptitle(period_str, fontsize=16, fontweight='bold')
-    plt.subplots_adjust(left=0.1, right=0.65, top=0.95, bottom=0.1, hspace=0.3)
+    # Создаем все диаграммы
+    diagrams = {
+        'drivers': [
+            create_driver_diagram(period_str, driver_stats)
+        ],
+        'depBuild': [
+            create_departments_with_buildings_diagram(period_str, from_stats, to_stats),
+            create_legend_diagram(driver_stats['cargo_counts'], driver_stats['driver_counts'])
+        ],
+        'dep': [
+            create_departments_diagram(period_str, from_stats_short, to_stats_short),
+            create_legend_diagram(driver_stats['cargo_counts'], driver_stats['driver_counts'])
+        ],
+        'all': [
+            create_driver_diagram(period_str, driver_stats),
+            create_departments_with_buildings_diagram(period_str, from_stats, to_stats),
+            create_departments_diagram(period_str, from_stats_short, to_stats_short),
+            create_legend_diagram(driver_stats['cargo_counts'], driver_stats['driver_counts'])
+        ]
+    }
 
-    fig3 = plt.figure(figsize=(12, 8))
-
-    fig4, (ax5, ax6) = plt.subplots(2, 1, figsize=(35, 19), height_ratios=[1, 1])
-    fig4.suptitle(period_str, fontsize=16, fontweight='bold')
-    plt.subplots_adjust(left=0.1, right=0.65, top=0.95, bottom=0.1, hspace=0.3)
-
-    driver_cargo.plot(kind='bar', stacked=True, ax=ax1, color=plt.cm.Set3(range(len(driver_cargo.columns))), edgecolor='black')
-    ax1.set_title("Количество заказов по водителям с разбиением по типам грузов")
-    ax1.set_xlabel("Водитель")
-    ax1.set_ylabel("Количество заказов")
-    ax1.tick_params(axis='x', rotation=45)
-    ax1.grid(True, axis='y')
-    ax1.legend(title="Группа груза", bbox_to_anchor=(1.05, 1), loc='upper left')
-
-    for i, driver in enumerate(driver_cargo.index):
-        cumulative_height = 0  
-        for j, cargo_type in enumerate(driver_cargo.columns):
-            value = driver_cargo.loc[driver, cargo_type]
-            if value > 0: 
-                cumulative_height += value
-            
-                text_y = cumulative_height - (value / 2)
-                ax1.text(i, text_y, int(value), ha='center', va='center', fontsize=8, color='black')
-
-    for i, total in enumerate(driver_cargo.sum(axis=1)):
-        ax1.text(i, total + 0.5, int(total), ha='center', va='bottom')
-
-    bars2 = ax2.bar(driver_time.index, driver_time.values / 60, color='lightgreen', edgecolor='black')  # Переводим секунды в минуты
-    ax2.set_title("Среднее время выполнения заказов по водителям (в минутах)")
-    ax2.set_xlabel("Водитель")
-    ax2.set_ylabel("Среднее время (мин)")
-    ax2.tick_params(axis='x', rotation=45)
-    ax2.grid(True, axis='y')
-    for bar in bars2:
-        yval = bar.get_height()
-        ax2.text(bar.get_x() + bar.get_width()/2, yval + 0.5, f"{yval:.1f}", ha='center', va='bottom')
-
-    ax_table = fig3.add_subplot(111)
-    ax_table.axis('off')  # Скрываем оси
-
-    cargo_stats = pd.DataFrame({"Количество": cargo_counts})
-    # Таблица по грузам (верхняя часть)
-    cargo_table = ax_table.table(
-        cellText=[["Группа груза", "Количество"]] + cargo_stats.reset_index().values.tolist(),
-        colWidths=[0.4, 0.2],
-        cellLoc='center',
-        bbox=[0.1, 0.55, 0.8, 0.4]  # x, y, width, height
-    )
-
-    # Таблица по исполнителям (нижняя часть)
-    driver_stats = pd.DataFrame({"Количество": driver_counts})
-    driver_table = ax_table.table(
-        cellText=[["ФИО исполнителя", "Количество"]] + driver_stats.reset_index().values.tolist(),
-        colWidths=[0.4, 0.2],
-        cellLoc='center',
-        bbox=[0.1, 0.05, 0.8, 0.4]
-    )
-
-    # Стилизация таблиц
-    for table in [cargo_table, driver_table]:
-        table.auto_set_font_size(False)
-        table.set_fontsize(12)
-        for (row, col), cell in table.get_celld().items():
-            if row == 0:  # Заголовки
-                cell.set_facecolor('#f0f0f0')
-                cell.set_text_props(weight='bold')
-
-    ax1.legend(title="Группа груза", bbox_to_anchor=(1.0, 1), loc='upper left')
-
-    plot_grouped_bars(ax3, from_stats, "Поступление заказов из цехов по типам (c корпусами)", "Цех (откуда)", "tab20", True)    
-    plot_grouped_bars(ax4, to_stats, "Поступление заказов в цеха по типам (c корпусами)", "Цех (куда)", "tab20c", True)
-
-    plot_grouped_bars(ax5, from_stats_short, "Поступление заказов из цехов по типам", "Цех (откуда)", "tab20", True)
-    plot_grouped_bars(ax6, to_stats_short, "Поступление заказов в цеха по типам", "Цех (куда)", "tab20c", True)
- 
-    plt.tight_layout()
-
-    hist_file1 = BytesIO()
-    fig1.savefig(hist_file1, format='png', bbox_inches='tight')
-    plt.close(fig1)
-    hist_file1.seek(0)
-
-    # Сохраняем второй график
-    hist_file2 = BytesIO()
-    fig2.savefig(hist_file2, format='png', bbox_inches='tight')
-    plt.close(fig2)
-    hist_file2.seek(0)
-
-    hist_file3 = BytesIO()
-    fig3.savefig(hist_file3, format='png', bbox_inches='tight')
-    plt.close(fig3)
-    hist_file3.seek(0)
-
-    hist_file4 = BytesIO()
-    fig4.savefig(hist_file4, format='png', bbox_inches='tight')
-    plt.close(fig4)
-    hist_file4.seek(0)
+    # Формируем результат
     result = []
-    match diogramType:
-        case "drivers":
-            result.append(BufferedInputFile(hist_file1.getvalue(), filename=f"Водители_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"))
-        case "depBuild":
-            result.append(BufferedInputFile(hist_file2.getvalue(), filename=f"Цеха(с корпусами)_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"))
-            result.append(BufferedInputFile(hist_file3.getvalue(), filename=f"Легеда к диаграмме цехов"))
-        case "dep":
-            result.append(BufferedInputFile(hist_file4.getvalue(), filename=f"Цеха_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"))
-            result.append(BufferedInputFile(hist_file3.getvalue(), filename=f"Легеда к диаграмме цехов"))
-        case "all":
-            result.append(BufferedInputFile(hist_file1.getvalue(), filename=f"Водители_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"))
-            result.append(BufferedInputFile(hist_file2.getvalue(), filename=f"Цеха_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"))
-            result.append(BufferedInputFile(hist_file4.getvalue(), filename=f"Цеха_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"))
-            result.append(BufferedInputFile(hist_file3.getvalue(), filename=f"Легеда к диаграмме цехов"))
+    for i, buffer in enumerate(diagrams[diogramType]):
+        if i == 1 and diogramType in ['depBuild', 'dep']:
+            filename = "Легенда к диаграмме цехов"
+        else:
+            filename = f"{diogramType}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+        result.append(BufferedInputFile(buffer.getvalue(), filename=filename))
+
     return result
 
 # Получаем данные с учетом корпусов
@@ -906,94 +1049,6 @@ def get_order_data(orders, location_attr):
                 'Количество': 1
             })
     return pd.DataFrame(data)
-
-def create_hierarchical_stats(df, is_buildings):
-    if df.empty:
-      return pd.DataFrame()
-    
-    if(is_buildings):
-        # Группируем по корпусам, цехам и типам грузов
-        grouped = df.groupby(['Корпус', 'Цех', 'Тип груза']).size().unstack(fill_value=0)
-    else:
-        grouped = df.groupby(['Цех', 'Тип груза']).size().unstack(fill_value=0)
-    
-    # Сортируем по корпусам и цехам
-    return grouped.sort_index(level=[0, 1])
-
-def plot_grouped_bars(ax, stats_df, title, xlabel, colormap, is_buildings):
-    if stats_df.empty:
-        ax.text(0.5, 0.5, 'Нет данных', ha='center', va='center')
-        ax.set_title(title)
-        return
-    
-    # Подготовка позиций
-    positions = []
-    xtick_labels = []
-    corpus_labels = []
-    current_pos = 0
-    
-    if(is_buildings):
-        # Группируем по корпусам
-        for corpus_name, corpus_group in stats_df.groupby(level=0):
-            n_shops = len(corpus_group)
-            shop_positions = range(current_pos, current_pos + n_shops)
-            positions.extend(shop_positions)
-            xtick_labels.extend(corpus_group.index.get_level_values(1).tolist())
-            
-            # Центр для подписи корпуса
-            corpus_center = (shop_positions[0] + shop_positions[-1]) / 2
-            corpus_labels.append((corpus_center, corpus_name))
-            
-            current_pos += n_shops + 1  # Добавляем промежуток между корпусами
-    
-    # Рисуем столбцы
-    bottom = np.zeros(len(positions))
-    colors = plt.get_cmap(colormap, len(stats_df.columns)).colors
-    
-    for i, col in enumerate(stats_df.columns):
-        values = []
-        for corpus_name, corpus_group in stats_df.groupby(level=0):
-            values.extend(corpus_group[col].values)
-        
-        ax.bar(positions, values, bottom=bottom, 
-               color=colors[i], 
-               edgecolor='black',
-               label=col)
-        bottom += np.array(values)
-    
-    # Настройка осей
-    ax.set_title(title)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel("Количество")
-    ax.set_xticks(positions)
-    ax.set_xticklabels(xtick_labels, rotation=45, ha="right")
-    ax.grid(True, axis='y')
-    ax.legend(title="Тип груза", bbox_to_anchor=(1.05, 1), loc='upper left')
-    
-    # Подписи корпусов
-    for center, corpus_name in corpus_labels:
-        ax.text(center, -0.1 * ax.get_ylim()[1], corpus_name, 
-                ha='center', va='top',
-                fontsize=10, fontweight='bold', color='darkblue')
-    
-    # Подписи значений
-    for i, pos in enumerate(positions):
-        total = bottom[i]
-        if total > 0:
-            ax.text(pos, total + 0.5, str(int(total)), 
-                    ha='center', va='bottom',
-                    fontsize=9, fontweight='bold')
-            
-            # Подписи внутри сегментов
-            cumulative = 0
-            for j, col in enumerate(stats_df.columns):
-                value = stats_df.iloc[i % len(stats_df), j] if i < len(stats_df) else 0
-                if value > 0:
-                    cumulative += value
-                    ax.text(pos, cumulative - value/2, str(int(value)),
-                            ha='center', va='center',
-                            fontsize=8, color='black')
-
 
 @connection
 async def get_user_id(session: AsyncSession, tg_id: int) -> int:
