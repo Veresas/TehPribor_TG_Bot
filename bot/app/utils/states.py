@@ -85,3 +85,24 @@ class AP_Staff(StatesGroup):
 class DriverSalyre(StatesGroup):
        set_period = State()
        start = State()
+
+class AddBuilding(StatesGroup):
+    choose_department_type = State()
+    choose_department = State()
+    input_name = State()
+    input_description = State()
+    confirm = State()
+
+class AddDepartment(StatesGroup):
+    choose_type = State()
+    input_name = State()
+    choose_building = State()
+    input_description = State()
+    confirm = State()
+
+class AddDepartmentAndBuilding(StatesGroup):
+    choose_type = State()
+    input_department_name = State()
+    input_building_name = State()
+    input_description = State()
+    confirm = State()

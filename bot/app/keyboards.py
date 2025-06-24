@@ -105,10 +105,12 @@ exportchoice = InlineKeyboardMarkup(inline_keyboard = [
 ])
 
 diogramChoise = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text='Заказы по водителям', callback_data='diogram:drivers'),
-     InlineKeyboardButton(text='Поступление из цехов и участков', callback_data='diogram:depBuild')],
-    [InlineKeyboardButton(text='Поступление из цехов', callback_data='diogram:dep'),
-     InlineKeyboardButton(text='Все', callback_data='diogram:all')]
+    [InlineKeyboardButton(text='Заказы по водителям', callback_data='diogram:drivers')],
+    [InlineKeyboardButton(text='Заказы по водителям с учетом коэффициентов', callback_data='diogram:driversWithWeight')],
+    [InlineKeyboardButton(text='Поступление из цехов', callback_data='diogram:dep')],
+    [InlineKeyboardButton(text='Поступление из цехов и участков', callback_data='diogram:depBuild')],
+    [InlineKeyboardButton(text='Время работы водителей', callback_data='diogram:time')],
+    [InlineKeyboardButton(text='Все', callback_data='diogram:all')]
 ])
 
 publicCatalogKey = InlineKeyboardMarkup(inline_keyboard = [
@@ -302,6 +304,20 @@ def build_chose(dep_id, is_ap = False):
     
     return keyboard.adjust(2).as_markup()
 
+def build_chose_all(is_ap = False):
+    builds = rq.get_bilds_List_all()
+    keyboard = InlineKeyboardBuilder()
+
+    for build in builds:
+        build_name = rq.get_build_name(int(build["building_id"]))
+        keyboard.add(InlineKeyboardButton(text=build_name, callback_data=f'depart_build:{build["id"]}'))
+    if is_ap:
+        keyboard.add(InlineKeyboardButton(text="Назад", callback_data="go_back"))
+    else:
+        keyboard.add(InlineKeyboardButton(text="Назад", callback_data=f'back_to_build_choise'))
+    
+    return keyboard.adjust(2).as_markup()
+
 def ratio_type_keyboard():
     keyboard = InlineKeyboardBuilder()
     keyboard.add(InlineKeyboardButton(text="Тип груза", callback_data="ratio_type:cargo"))
@@ -356,4 +372,12 @@ ap_dep_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     ],
     [InlineKeyboardButton(text="Назад", callback_data="go_back")]
 ])
+
+def confirm_kb():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text='Подтвердить', callback_data='confirm'),
+            InlineKeyboardButton(text='Отмена', callback_data='cancel')
+        ]
+    ])
 

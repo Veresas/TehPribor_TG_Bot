@@ -197,11 +197,14 @@ async def order_take(callback: CallbackQuery, state: FSMContext):
        data = await state.get_data()
        await callback.answer()
        try:
-              if await rq.take_order(tg_id=data["tg_id"], order_id=int(data["orderId"])):
+              result = await rq.take_order(tg_id=data["tg_id"], order_id=int(data["orderId"]))
+              if result == 'ok':
                      await callback.message.answer(f'Вы взяли заказ: {data["orderId"]}', reply_markup=ReplyKeyboardRemove())
                      chat_id, mes = await rq.get_user_for_send(orderId=int(data["orderId"]), driver_id=data["tg_id"], action_text="Взятие в работу")
                      await callback.message.bot.send_message(chat_id=chat_id, text=mes, parse_mode="HTML")
                      await state.clear()
+              elif result == 'too_many':
+                     await callback.message.answer('У вас слишком много активных заказов. Сначала завершите часть из них.')
               else:
                      await callback.message.answer(f'Этот заказ уже взят')
        except Exception as e:

@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 import app.utils.states as st
 import app.utils.filters as fl
 import app.utils.help_func as util
+import logging
 
 router = Router()
 
@@ -381,6 +382,270 @@ async def salary_period(message: Message, state:FSMContext):
               await message.answer("Некорректный формат введных данных. Повторите еще раз")
 
 # endregion
+
+@router.message(Command('add_building'))
+async def start_add_building(message: Message, state: FSMContext):
+    try:
+        kb_markup = kb.dep_keyboard
+        await message.answer('Выберите тип подразделения:', reply_markup=kb_markup)
+        await state.set_state(st.AddBuilding.choose_department_type)
+    except Exception as e:
+        logging.error(f"Ошибка в start_add_building: {e}")
+        await message.answer('Ошибка при запуске добавления корпуса.')
+
+@router.callback_query(st.AddBuilding.choose_department_type, F.data.startswith('dep_type_choise:'))
+async def add_building_choose_department_type(callback: CallbackQuery, state: FSMContext):
+    try:
+        dep_type_id = int(callback.data.split(':')[1])
+        kb_markup = kb.dep_chose(dep_type_id, is_ap = True)
+        await callback.answer()
+        await callback.message.edit_text('Выберите отдел:', reply_markup=kb_markup)
+        await state.set_state(st.AddBuilding.choose_department)
+    except Exception as e:
+        logging.error(f"Ошибка в add_building_choose_department_type: {e}")
+        await callback.answer('Ошибка при выборе типа подразделения.', show_alert=True)
+
+@router.callback_query(st.AddBuilding.choose_department, F.data.startswith('depart:'))
+async def add_building_choose_department(callback: CallbackQuery, state: FSMContext):
+    try:
+        dep_id = int(callback.data.split(':')[1])
+        await state.update_data(department_id=dep_id)
+        await callback.answer()
+        await callback.message.answer('Введите название корпуса:')
+        await state.set_state(st.AddBuilding.input_name)
+    except Exception as e:
+        logging.error(f"Ошибка в add_building_choose_department: {e}")
+        await callback.answer('Ошибка при выборе отдела.', show_alert=True)
+
+@router.message(st.AddBuilding.input_name)
+async def add_building_input_name(message: Message, state: FSMContext):
+    try:
+        await state.update_data(building_name=message.text.strip())
+        await message.answer('Введите описание точки (или "-" если не требуется):')
+        await state.set_state(st.AddBuilding.input_description)
+    except Exception as e:
+        logging.error(f"Ошибка в add_building_input_name: {e}")
+        await message.answer('Ошибка при вводе названия корпуса.')
+
+@router.message(st.AddBuilding.input_description)
+async def add_building_input_description(message: Message, state: FSMContext):
+    try:
+        desc = message.text.strip()
+        await state.update_data(description=desc)
+        data = await state.get_data()
+        dep_id = data['department_id']
+        name = data['building_name']
+        description = data['description']
+        confirm_text = f'Добавить корпус "{name}"\nОтдел ID: {dep_id}\nОписание: {description or "-"}?'
+        kb_markup = kb.confirm_kb()
+        await message.answer(confirm_text, reply_markup=kb_markup)
+        await state.set_state(st.AddBuilding.confirm)
+    except Exception as e:
+        logging.error(f"Ошибка в add_building_input_description: {e}")
+        await message.answer('Ошибка при вводе описания.')
+
+@router.callback_query(st.AddBuilding.confirm, F.data == 'confirm')
+async def add_building_confirm(callback: CallbackQuery, state: FSMContext):
+    try:
+        data = await state.get_data()
+        build_id = await rq.add_building(name=data['building_name'])
+        await rq.add_department_building(department_id=data['department_id'], building_id=build_id, description=data['description'])
+        await rq.dep_build_set()
+        await callback.answer('Корпус добавлен!')
+        await callback.message.edit_text('Корпус успешно добавлен.')
+        await state.clear()
+    except Exception as e:
+        logging.error(f"Ошибка в add_building_confirm: {e}")
+        await callback.answer('Ошибка при добавлении корпуса.', show_alert=True)
+        await callback.message.edit_text('Ошибка при добавлении корпуса.')
+        await state.clear()
+
+@router.callback_query(st.AddBuilding.confirm, F.data == 'cancel')
+async def add_building_cancel(callback: CallbackQuery, state: FSMContext):
+    try:
+        await callback.answer('Отмена')
+        await callback.message.edit_text('Добавление корпуса отменено.')
+        await state.clear()
+    except Exception as e:
+        logging.error(f"Ошибка в add_building_cancel: {e}")
+
+@router.message(Command('add_department'))
+async def start_add_department(message: Message, state: FSMContext):
+    try:
+        kb_markup = kb.dep_keyboard
+        await message.answer('Выберите тип подразделения для нового отдела:', reply_markup=kb_markup)
+        await state.set_state(st.AddDepartment.choose_type)
+    except Exception as e:
+        logging.error(f"Ошибка в start_add_department: {e}")
+        await message.answer('Ошибка при запуске добавления отдела.')
+
+@router.callback_query(st.AddDepartment.choose_type, F.data.startswith('dep_type_choise:'))
+async def add_department_choose_type(callback: CallbackQuery, state: FSMContext):
+    try:
+        dep_type_id = int(callback.data.split(':')[1])
+        await state.update_data(dep_type_id=dep_type_id)
+        await callback.answer()
+        await callback.message.answer('Введите название отдела:')
+        await state.set_state(st.AddDepartment.input_name)
+    except Exception as e:
+        logging.error(f"Ошибка в add_department_choose_type: {e}")
+        await callback.answer('Ошибка при выборе типа подразделения.', show_alert=True)
+
+@router.message(st.AddDepartment.input_name)
+async def add_department_input_name(message: Message, state: FSMContext):
+    try:
+        await state.update_data(department_name=message.text.strip())
+        kb_markup = kb.build_chose_all(is_ap = True)
+        await message.answer('Выберите корпус для отдела:', reply_markup=kb_markup)
+        await state.set_state(st.AddDepartment.choose_building)
+    except Exception as e:
+        logging.error(f"Ошибка в add_department_input_name: {e}")
+        await message.answer('Ошибка при вводе названия отдела.')
+
+@router.callback_query(st.AddDepartment.choose_building, F.data.startswith('depart_build:'))
+async def add_department_choose_building(callback: CallbackQuery, state: FSMContext):
+    try:
+        build_id = int(callback.data.split(':')[1])
+        await state.update_data(building_id=build_id)
+        await callback.answer()
+        await callback.message.answer('Введите описание точки (или "-" если не требуется):')
+        await state.set_state(st.AddDepartment.input_description)
+    except Exception as e:
+        logging.error(f"Ошибка в add_department_choose_building: {e}")
+        await callback.answer('Ошибка при выборе корпуса.', show_alert=True)
+
+@router.message(st.AddDepartment.input_description)
+async def add_department_input_description(message: Message, state: FSMContext):
+    try:
+        desc = message.text.strip()
+        await state.update_data(description=desc)
+        data = await state.get_data()
+        dep_type_id = data['dep_type_id']
+        name = data['department_name']
+        build_id = data['building_id']
+        description = data['description']
+        confirm_text = f'Добавить отдел "{name}"\nТип: {"Цех" if dep_type_id==1 else "Отдел"}\nКорпус ID: {build_id}\nОписание: {description or "-"}?'
+        kb_markup = kb.confirm_kb()
+        await message.answer(confirm_text, reply_markup=kb_markup)
+        await state.set_state(st.AddDepartment.confirm)
+    except Exception as e:
+        logging.error(f"Ошибка в add_department_input_description: {e}")
+        await message.answer('Ошибка при вводе описания.')
+
+@router.callback_query(st.AddDepartment.confirm, F.data == 'confirm')
+async def add_department_confirm(callback: CallbackQuery, state: FSMContext):
+    try:
+        data = await state.get_data()
+        dep_id = await rq.add_department(name=data['department_name'], type_id=data['dep_type_id'])
+        await rq.add_department_building(department_id=dep_id, building_id=data['building_id'], description=data['description'])
+        await rq.dep_build_set()
+        await callback.answer('Отдел добавлен!')
+        await callback.message.edit_text('Отдел успешно добавлен.')
+        await state.clear()
+    except Exception as e:
+        logging.error(f"Ошибка в add_department_confirm: {e}")
+        await callback.answer('Ошибка при добавлении отдела.', show_alert=True)
+        await callback.message.edit_text('Ошибка при добавлении отдела.')
+        await state.clear()
+
+@router.callback_query(st.AddDepartment.confirm, F.data == 'cancel')
+async def add_department_cancel(callback: CallbackQuery, state: FSMContext):
+    try:
+        await callback.answer('Отмена')
+        await callback.message.edit_text('Добавление отдела отменено.')
+        await state.clear()
+    except Exception as e:
+        logging.error(f"Ошибка в add_department_cancel: {e}")
+
+@router.message(Command('add_dep_and_build'))
+async def start_add_dep_and_build(message: Message, state: FSMContext):
+    try:
+        kb_markup = kb.dep_keyboard
+        await message.answer('Выберите тип подразделения для нового отдела:', reply_markup=kb_markup)
+        await state.set_state(st.AddDepartmentAndBuilding.choose_type)
+    except Exception as e:
+        logging.error(f"Ошибка в start_add_dep_and_build: {e}")
+        await message.answer('Ошибка при запуске добавления отдела и корпуса.')
+
+@router.callback_query(st.AddDepartmentAndBuilding.choose_type, F.data.startswith('dep_type_choise:'))
+async def dep_and_build_choose_type(callback: CallbackQuery, state: FSMContext):
+    try:
+        dep_type_id = int(callback.data.split(':')[1])
+        await state.update_data(dep_type_id=dep_type_id)
+        await callback.answer()
+        await callback.message.answer('Введите название отдела:')
+        await state.set_state(st.AddDepartmentAndBuilding.input_department_name)
+    except Exception as e:
+        logging.error(f"Ошибка в dep_and_build_choose_type: {e}")
+        await callback.answer('Ошибка при выборе типа подразделения.', show_alert=True)
+
+@router.message(st.AddDepartmentAndBuilding.input_department_name)
+async def dep_and_build_input_department_name(message: Message, state: FSMContext):
+    try:
+        await state.update_data(department_name=message.text.strip())
+        await message.answer('Введите название корпуса:')
+        await state.set_state(st.AddDepartmentAndBuilding.input_building_name)
+    except Exception as e:
+        logging.error(f"Ошибка в dep_and_build_input_department_name: {e}")
+        await message.answer('Ошибка при вводе названия отдела.')
+
+@router.message(st.AddDepartmentAndBuilding.input_building_name)
+async def dep_and_build_input_building_name(message: Message, state: FSMContext):
+    try:
+        await state.update_data(building_name=message.text.strip())
+        await message.answer('Введите описание точки (или "-" если не требуется):')
+        await state.set_state(st.AddDepartmentAndBuilding.input_description)
+    except Exception as e:
+        logging.error(f"Ошибка в dep_and_build_input_building_name: {e}")
+        await message.answer('Ошибка при вводе названия корпуса.')
+
+@router.message(st.AddDepartmentAndBuilding.input_description)
+async def dep_and_build_input_description(message: Message, state: FSMContext):
+    try:
+        desc = message.text.strip()
+        await state.update_data(description=desc)
+        data = await state.get_data()
+        dep_type_id = data['dep_type_id']
+        dep_name = data['department_name']
+        build_name = data['building_name']
+        description = data['description']
+        confirm_text = f'Добавить отдел "{dep_name}"\nТип: {"Цех" if dep_type_id==1 else "Отдел"}\nКорпус: {build_name}\nОписание: {description or "-"}?'
+        kb_markup = kb.confirm_kb()
+        await message.answer(confirm_text, reply_markup=kb_markup)
+        await state.set_state(st.AddDepartmentAndBuilding.confirm)
+    except Exception as e:
+        logging.error(f"Ошибка в dep_and_build_input_description: {e}")
+        await message.answer('Ошибка при вводе описания.')
+
+@router.callback_query(st.AddDepartmentAndBuilding.confirm, F.data == 'confirm')
+async def dep_and_build_confirm(callback: CallbackQuery, state: FSMContext):
+    try:
+        data = await state.get_data()
+        await rq.add_department_and_building(
+            department_name=data['department_name'],
+            department_type_id=data['dep_type_id'],
+            building_name=data['building_name'],
+            description=data['description']
+        )
+        await rq.dep_build_set()
+        await callback.answer('Отдел и корпус добавлены!')
+        await callback.message.edit_text('Отдел и корпус успешно добавлены.')
+        await state.clear()
+    except Exception as e:
+        logging.error(f"Ошибка в dep_and_build_confirm: {e}")
+        await callback.answer('Ошибка при добавлении.', show_alert=True)
+        await callback.message.edit_text('Ошибка при добавлении отдела и корпуса.')
+        await state.clear()
+
+@router.callback_query(st.AddDepartmentAndBuilding.confirm, F.data == 'cancel')
+async def dep_and_build_cancel(callback: CallbackQuery, state: FSMContext):
+    try:
+        await callback.answer('Отмена')
+        await callback.message.edit_text('Добавление отменено.')
+        await state.clear()
+    except Exception as e:
+        logging.error(f"Ошибка в dep_and_build_cancel: {e}")
+
 """
 @router. ()
 async def (message: Message, calback: CallbackQuery, state: FSMContext):

@@ -74,7 +74,10 @@ COMMANDS_BY_ROLE = {
        BotCommand(command="admin_panel", description="Панель администратора"),
        BotCommand(command="reload_comand", description="Обновление списка команд"),
        BotCommand(command="change_role", description="Смена роли"),
-       BotCommand(command="drivers_salary", description="Выписка зарплат транспортировщиков")
+       BotCommand(command="drivers_salary", description="Выписка зарплат транспортировщиков"),
+       BotCommand(command="add_building", description="Добавление корпуса"),
+       BotCommand(command="add_department", description="Добавление отдела"),
+       BotCommand(command="add_department_and_building", description="Добавление отдела и корпуса")
     ]
 }
 

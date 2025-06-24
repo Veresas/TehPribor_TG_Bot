@@ -304,26 +304,33 @@ async def chek_next_record(session: AsyncSession, end)-> bool:
     return order is not None
 
 @connection
-async def take_order(session: AsyncSession, tg_id, order_id)-> bool:
+async def take_order(session: AsyncSession, tg_id, order_id) -> str:
+    # Проверка на количество активных заказов
+    user = await session.scalar(select(tb.User).where(tb.User.tgId == tg_id))
+    active_orders_count = await session.scalar(
+        select(func.count()).select_from(tb.Order).where(
+            tb.Order.driverId == user.idUser,
+            tb.Order.orderStatusId == 2
+        )
+    )
+    if active_orders_count >= 10:
+        return 'too_many'
 
-    if await check_order_status(order_id=order_id, expectStatus = [1]):
-        user = await session.scalar(select(tb.User).where(tb.User.tgId == tg_id))
-        new_data={
+    if await check_order_status(order_id=order_id, expectStatus=[1]):
+        new_data = {
             "driverId": user.idUser,
             "orderStatusId": 2,
-            "pickup_time":datetime.now(),
+            "pickup_time": datetime.now(),
         }
-
         stmt = (
             update(tb.Order)
             .where(tb.Order.idOrder == order_id)
             .values(**new_data)
         )
-
         await session.execute(stmt)
-        return True
+        return 'ok'
     else:
-        return False
+        return 'taken'
 
 @connection
 async def check_order_status(session: AsyncSession, order_id, expectStatus: List[int])-> bool:
@@ -713,6 +720,7 @@ def create_driver_stats(orders):
         }
         for order in orders 
         if order.executor and order.cargoType and order.completion_time.date() == order.pickup_time.date()
+        and getattr(order.executor, 'is_denied', True) == False and getattr(order.executor, 'roleId', None) == 2
     ]
 
     data_to_order_count = [
@@ -722,6 +730,7 @@ def create_driver_stats(orders):
         }
         for order in orders 
         if order.executor and order.cargoType
+        and getattr(order.executor, 'is_denied', True) == False and getattr(order.executor, 'roleId', None) == 2
     ]
 
     df_time = pd.DataFrame(data_to_time)
@@ -824,6 +833,58 @@ def get_workshop_orders(orders, location_attr):
         and o.cargoType
     ]
 
+def create_driver_orders_diagram(period_str: str, driver_stats: dict) -> BytesIO:
+    """Диаграмма по водителям (только количество заказов по типам)"""
+    fig, ax1 = create_figure_with_subplots(1, (17, 15))
+    fig.suptitle(period_str, fontsize=16, fontweight='bold')
+    # График распределения заказов по типам грузов
+    stats = driver_stats
+    stats['driver_cargo'].plot(
+        kind='bar',
+        stacked=True,
+        ax=ax1,
+        color=plt.cm.Set3(range(len(stats['driver_cargo'].columns))),
+        edgecolor='black'
+    )
+    ax1.set_title("Количество заказов по водителям с разбиением по типам грузов")
+    ax1.set_xlabel("Водитель")
+    ax1.set_ylabel("Количество заказов")
+    ax1.tick_params(axis='x', rotation=45)
+    ax1.grid(True, axis='y')
+    ax1.legend(title="Группа груза", bbox_to_anchor=(1.05, 1), loc='upper left')
+    for i, driver in enumerate(stats['driver_cargo'].index):
+        cumulative_height = 0
+        for j, cargo_type in enumerate(stats['driver_cargo'].columns):
+            value = stats['driver_cargo'].loc[driver, cargo_type]
+            if value > 0:
+                cumulative_height += value
+                text_y = cumulative_height - (value / 2)
+                ax1.text(i, text_y, int(value), ha='center', va='center', fontsize=8, color='black')
+        total = stats['driver_cargo'].sum(axis=1)[driver]
+        ax1.text(i, total + 0.5, int(total), ha='center', va='bottom')
+    return save_figure_to_buffer(fig)
+
+def create_driver_time_diagram(period_str: str, driver_stats: dict) -> BytesIO:
+    """Диаграмма по среднему времени выполнения заказов по водителям"""
+    fig, ax2 = create_figure_with_subplots(1, (17, 13))
+    fig.suptitle(period_str, fontsize=16, fontweight='bold')
+    stats = driver_stats
+    bars = ax2.bar(
+        stats['driver_time'].index,
+        stats['driver_time'].values / 60,  # Переводим секунды в минуты
+        color='lightgreen',
+        edgecolor='black'
+    )
+    ax2.set_title("Среднее время выполнения заказов по водителям (в минутах)")
+    ax2.set_xlabel("Водитель")
+    ax2.set_ylabel("Среднее время (мин)")
+    ax2.tick_params(axis='x', rotation=45)
+    ax2.grid(True, axis='y')
+    for bar in bars:
+        yval = bar.get_height()
+        ax2.text(bar.get_x() + bar.get_width()/2, yval + 0.5, f"{yval:.1f}", ha='center', va='bottom')
+    return save_figure_to_buffer(fig)
+
 def create_driver_diagram(period_str: str, driver_stats: dict) -> BytesIO:
     """Создает диаграмму по водителям"""
     fig, (ax1, ax2) = create_figure_with_subplots(2, (17, 19), [1, 1])
@@ -873,35 +934,25 @@ def plot_grouped_bars(ax, stats_df: pd.DataFrame, title: str, xlabel: str, color
         ax.text(0.5, 0.5, 'Нет данных', ha='center', va='center')
         ax.set_title(title)
         return
-    
     # Подготовка позиций
     positions = []
     xtick_labels = []
     corpus_labels = []
     current_pos = 0
-    
     if is_buildings:
-        # Группируем по корпусам
         for corpus_name, corpus_group in stats_df.groupby(level=0):
             n_shops = len(corpus_group)
             shop_positions = range(current_pos, current_pos + n_shops)
             positions.extend(shop_positions)
             xtick_labels.extend(corpus_group.index.get_level_values(1).tolist())
-            
-            # Центр для подписи корпуса
             corpus_center = (shop_positions[0] + shop_positions[-1]) / 2
             corpus_labels.append((corpus_center, corpus_name))
-            
-            current_pos += n_shops + 1  # Добавляем промежуток между корпусами
+            current_pos += n_shops + 1
     else:
-        # Для случая без корпусов используем простую нумерацию
         positions = range(len(stats_df))
         xtick_labels = stats_df.index.get_level_values(0).tolist()
-    
-    # Рисуем столбцы
     bottom = np.zeros(len(positions))
     colors = plt.get_cmap(colormap, len(stats_df.columns)).colors
-    
     for i, col in enumerate(stats_df.columns):
         values = []
         if is_buildings:
@@ -909,14 +960,16 @@ def plot_grouped_bars(ax, stats_df: pd.DataFrame, title: str, xlabel: str, color
                 values.extend(corpus_group[col].values)
         else:
             values = stats_df[col].values
-        
-        ax.bar(positions, values, bottom=bottom, 
+        bars = ax.bar(positions, values, bottom=bottom, 
                color=colors[i], 
                edgecolor='black',
                label=col)
+        # Подписи внутри сегментов только для текущего слоя
+        for idx, (pos, value) in enumerate(zip(positions, values)):
+            if value > 0:
+                y = bottom[idx] + value / 2
+                ax.text(pos, y, str(int(value)), ha='center', va='center', fontsize=8, color='black')
         bottom += np.array(values)
-    
-    # Настройка осей
     ax.set_title(title)
     ax.set_xlabel(xlabel)
     ax.set_ylabel("Количество")
@@ -924,113 +977,184 @@ def plot_grouped_bars(ax, stats_df: pd.DataFrame, title: str, xlabel: str, color
     ax.set_xticklabels(xtick_labels, rotation=45, ha="right")
     ax.grid(True, axis='y')
     ax.legend(title="Тип груза", bbox_to_anchor=(1.05, 1), loc='upper left')
-    
-    # Подписи корпусов (только для случая с корпусами)
     if is_buildings:
         for center, corpus_name in corpus_labels:
             ax.text(center, -0.1 * ax.get_ylim()[1], corpus_name, 
                     ha='center', va='top',
                     fontsize=10, fontweight='bold', color='darkblue')
-    
-    # Подписи значений
-    for i, pos in enumerate(positions):
-        total = bottom[i]
+    # Подписи total только один раз (сумма по столбцу)
+    for idx, pos in enumerate(positions):
+        total = bottom[idx]
         if total > 0:
             ax.text(pos, total + 0.5, str(int(total)), 
                     ha='center', va='bottom',
                     fontsize=9, fontweight='bold')
-            
-            # Подписи внутри сегментов
-            cumulative = 0
-            for j, col in enumerate(stats_df.columns):
-                value = values[i] if i < len(values) else 0
+
+def create_driver_diagram_weighted(period_str: str, driver_stats: dict) -> BytesIO:
+    try:
+        fig, ax1 = create_figure_with_subplots(1, (17, 15))
+        fig.suptitle(period_str + ' (с учетом веса)', fontsize=16, fontweight='bold')
+        stats = driver_stats
+        stats['driver_cargo'].plot(
+            kind='bar',
+            stacked=True,
+            ax=ax1,
+            color=plt.cm.Set3(range(len(stats['driver_cargo'].columns))),
+            edgecolor='black'
+        )
+        ax1.set_title("Количество заказов по водителям с учетом веса (с разбиением по типам)")
+        ax1.set_xlabel("Водитель")
+        ax1.set_ylabel("Суммарный весовой коэффициент")
+        ax1.tick_params(axis='x', rotation=45)
+        ax1.grid(True, axis='y')
+        ax1.legend(title="Группа груза", bbox_to_anchor=(1.05, 1), loc='upper left')
+        for i, driver in enumerate(stats['driver_cargo'].index):
+            cumulative_height = 0
+            for j, cargo_type in enumerate(stats['driver_cargo'].columns):
+                value = stats['driver_cargo'].loc[driver, cargo_type]
                 if value > 0:
-                    cumulative += value
-                    ax.text(pos, cumulative - value/2, str(int(value)),
-                            ha='center', va='center',
-                            fontsize=8, color='black')
+                    cumulative_height += value
+                    text_y = cumulative_height - (value / 2)
+                    ax1.text(i, text_y, f"{value:.1f}", ha='center', va='center', fontsize=8, color='black')
+            total = stats['driver_cargo'].sum(axis=1)[driver]
+            ax1.text(i, total + 0.5, f"{total:.1f}", ha='center', va='bottom')
+        return save_figure_to_buffer(fig)
+    except Exception as e:
+        logging.error(f"[create_driver_diagram_weighted] Ошибка при построении диаграммы: {e}")
+        raise
+
+async def create_driver_stats_weighted_for_export(orders, session):
+    logging.info(f"[create_driver_stats_weighted_for_export] Start. Orders count: {len(orders)}")
+    from collections import defaultdict
+    driver_cargo_weighted = defaultdict(lambda: defaultdict(float))
+    driver_counts_weighted = defaultdict(float)
+    cargo_counts_weighted = defaultdict(float)
+
+    async def get_weighted(order):
+        try:
+            if order.executor and order.cargoType and getattr(order.executor, 'is_denied', True) == False and getattr(order.executor, 'roleId', None) == 2:
+                coeff = await get_weight_coefficient_by_order_id(order.idOrder)
+                logging.debug(f"Order {order.idOrder}: fio={order.executor.fio}, cargo={order.cargoType.cargoTypeName}, coeff={coeff}")
+                return (order.executor.fio, order.cargoType.cargoTypeName, coeff)
+        except Exception as e:
+            logging.error(f"Ошибка при вычислении коэффициента веса для заказа {getattr(order, 'idOrder', None)}: {e}")
+        return None
+
+    tasks = [get_weighted(order) for order in orders]
+    results = await asyncio.gather(*tasks)
+    for res in results:
+        if res:
+            fio, cargo, coeff = res
+            driver_cargo_weighted[fio][cargo] += coeff
+            driver_counts_weighted[fio] += coeff
+            cargo_counts_weighted[cargo] += coeff
+
+    import pandas as pd
+    df_driver_cargo = pd.DataFrame(driver_cargo_weighted).T.fillna(0)
+    df_driver_cargo = df_driver_cargo[df_driver_cargo.sum(axis=1) > 0]
+    logging.info(f"[create_driver_stats_weighted_for_export] Done. Drivers: {list(driver_counts_weighted.keys())}")
+    return {
+        'driver_cargo': df_driver_cargo,
+        'driver_counts': pd.Series(driver_counts_weighted),
+        'cargo_counts': pd.Series(cargo_counts_weighted)
+    }
 
 @connection
 async def export_diagrama(session,
     diogramType,
     date_from: datetime = None,
     date_to: datetime = datetime.today() + timedelta(days = 1)) -> BufferedInputFile:
-    
-    # Получаем данные
-    stmt = (
-        select(tb.Order)
-        .options(
-            joinedload(tb.Order.cargoType),
-            joinedload(tb.Order.executor),
-            joinedload(tb.Order.depart_loc_ref).joinedload(tb.DepartmentBuilding.department).joinedload(tb.Department.departmentType),
-            joinedload(tb.Order.depart_loc_ref).joinedload(tb.DepartmentBuilding.building),
-            joinedload(tb.Order.goal_loc_ref).joinedload(tb.DepartmentBuilding.department).joinedload(tb.Department.departmentType),
-            joinedload(tb.Order.goal_loc_ref).joinedload(tb.DepartmentBuilding.building)
+    logging.info(f"[export_diagrama] Начало экспорта диаграммы. Тип: {diogramType}, с {date_from} по {date_to}")
+    try:
+        logging.info("[export_diagrama] Получение заказов из базы данных")
+        stmt = (
+            select(tb.Order)
+            .options(
+                joinedload(tb.Order.cargoType),
+                joinedload(tb.Order.executor),
+                joinedload(tb.Order.depart_loc_ref).joinedload(tb.DepartmentBuilding.department).joinedload(tb.Department.departmentType),
+                joinedload(tb.Order.depart_loc_ref).joinedload(tb.DepartmentBuilding.building),
+                joinedload(tb.Order.goal_loc_ref).joinedload(tb.DepartmentBuilding.department).joinedload(tb.Department.departmentType),
+                joinedload(tb.Order.goal_loc_ref).joinedload(tb.DepartmentBuilding.building)
+            )
+            .where(and_(
+                tb.Order.orderStatusId == 3,
+                tb.Order.completion_time.isnot(None),
+                tb.Order.pickup_time.isnot(None),
+                tb.Order.completion_time >= date_from,
+                tb.Order.completion_time <= date_to
+            ))
         )
-        .where(and_(
-            tb.Order.orderStatusId == 3,
-            tb.Order.completion_time.isnot(None),
-            tb.Order.pickup_time.isnot(None),
-            tb.Order.completion_time >= date_from,
-            tb.Order.completion_time <= date_to
-        ))
-    )
+        result = await session.execute(stmt)
+        orders = result.scalars().all()
+        logging.info(f"[export_diagrama] Получено заказов: {len(orders)}")
+        if not orders:
+            logging.error("[export_diagrama] Нет выполненных заказов за указанный период")
+            raise ValueError("Нет выполненных заказов за указанный период")
 
-    result = await session.execute(stmt)
-    orders = result.scalars().all()
-    if not orders:
-        raise ValueError("Нет выполненных заказов за указанный период")
+        logging.info("[export_diagrama] Формирование driver_stats")
+        driver_stats = create_driver_stats(orders)
+        logging.info("[export_diagrama] Формирование driver_stats_weighted")
+        driver_stats_weighted = await create_driver_stats_weighted_for_export(orders, session)
 
-    # Создаем статистику
-    driver_stats = create_driver_stats(orders)
-    
-    # Получаем заказы для цехов
-    orders_from_workshops = get_workshop_orders(orders, 'depart_loc_ref')
-    orders_to_workshops = get_workshop_orders(orders, 'goal_loc_ref')
+        logging.info("[export_diagrama] Формирование orders_from_workshops и orders_to_workshops")
+        orders_from_workshops = get_workshop_orders(orders, 'depart_loc_ref')
+        orders_to_workshops = get_workshop_orders(orders, 'goal_loc_ref')
+        from_df = get_order_data(orders_from_workshops, 'depart_loc_ref')
+        to_df = get_order_data(orders_to_workshops, 'goal_loc_ref')
+        from_stats = create_hierarchical_stats(from_df, True)
+        to_stats = create_hierarchical_stats(to_df, True)
+        from_stats_short = create_hierarchical_stats(from_df, False)
+        to_stats_short = create_hierarchical_stats(to_df, False)
 
-    # Создаем DataFrame для цехов
-    from_df = get_order_data(orders_from_workshops, 'depart_loc_ref')
-    to_df = get_order_data(orders_to_workshops, 'goal_loc_ref')
+        period_str = f"Период: {date_from.strftime('%d.%m.%Y')} — {date_to.strftime('%d.%m.%Y')}"
 
-    # Создаем статистику для цехов
-    from_stats = create_hierarchical_stats(from_df, True)
-    to_stats = create_hierarchical_stats(to_df, True)
-    from_stats_short = create_hierarchical_stats(from_df, False)
-    to_stats_short = create_hierarchical_stats(to_df, False)
+        diagrams = {
+            'drivers': [
+                create_driver_orders_diagram(period_str, driver_stats)
+            ],
+            'time': [
+                create_driver_time_diagram(period_str, driver_stats)
+            ],
+            'driversWithWeight': [
+                create_driver_diagram_weighted(period_str, driver_stats_weighted)
+            ],
+            'depBuild': [
+                create_departments_with_buildings_diagram(period_str, from_stats, to_stats),
+                create_legend_diagram(driver_stats['cargo_counts'], driver_stats['driver_counts'])
+            ],
+            'dep': [
+                create_departments_diagram(period_str, from_stats_short, to_stats_short),
+                create_legend_diagram(driver_stats['cargo_counts'], driver_stats['driver_counts'])
+            ],
+            'all': [
+                create_driver_orders_diagram(period_str, driver_stats),
+                create_driver_time_diagram(period_str, driver_stats),
+                create_driver_diagram_weighted(period_str, driver_stats_weighted),
+                create_departments_with_buildings_diagram(period_str, from_stats, to_stats),
+                create_departments_diagram(period_str, from_stats_short, to_stats_short),
+                create_legend_diagram(driver_stats['cargo_counts'], driver_stats['driver_counts'])
+            ]
+        }
 
-    period_str = f"Период: {date_from.strftime('%d.%m.%Y')} — {date_to.strftime('%d.%m.%Y')}"
+        if diogramType not in diagrams:
+            logging.error(f"[export_diagrama] Неизвестный тип диаграммы: {diogramType}")
+            raise ValueError(f"Неизвестный тип диаграммы: {diogramType}")
 
-    # Создаем все диаграммы
-    diagrams = {
-        'drivers': [
-            create_driver_diagram(period_str, driver_stats)
-        ],
-        'depBuild': [
-            create_departments_with_buildings_diagram(period_str, from_stats, to_stats),
-            create_legend_diagram(driver_stats['cargo_counts'], driver_stats['driver_counts'])
-        ],
-        'dep': [
-            create_departments_diagram(period_str, from_stats_short, to_stats_short),
-            create_legend_diagram(driver_stats['cargo_counts'], driver_stats['driver_counts'])
-        ],
-        'all': [
-            create_driver_diagram(period_str, driver_stats),
-            create_departments_with_buildings_diagram(period_str, from_stats, to_stats),
-            create_departments_diagram(period_str, from_stats_short, to_stats_short),
-            create_legend_diagram(driver_stats['cargo_counts'], driver_stats['driver_counts'])
-        ]
-    }
-
-    # Формируем результат
-    result = []
-    for i, buffer in enumerate(diagrams[diogramType]):
-        if i == 1 and diogramType in ['depBuild', 'dep']:
-            filename = "Легенда к диаграмме цехов"
-        else:
-            filename = f"{diogramType}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
-        result.append(BufferedInputFile(buffer.getvalue(), filename=filename))
-
-    return result
+        logging.info(f"[export_diagrama] Формирование файлов для типа: {diogramType}")
+        result = []
+        for i, buffer in enumerate(diagrams[diogramType]):
+            if i == 1 and diogramType in ['depBuild', 'dep']:
+                filename = "Легенда к диаграмме цехов"
+            else:
+                filename = f"{diogramType}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+            logging.info(f"[export_diagrama] Добавление файла: {filename}")
+            result.append(BufferedInputFile(buffer.getvalue(), filename=filename))
+        logging.info(f"[export_diagrama] Успешно завершено. Файлов: {len(result)}")
+        return result
+    except Exception as e:
+        logging.error(f"[export_diagrama] Ошибка при экспорте диаграммы: {e}")
+        raise
 
 # Получаем данные с учетом корпусов
 def get_order_data(orders, location_attr):
@@ -1188,6 +1312,10 @@ def get_bilds_List(dep_id: int) -> List[dict]:
             for entry in dep_build_cache["department_buildings"]
             if entry["department_id"] == dep_id]
 
+def get_bilds_List_all() -> List[dict]:
+    return [{"id": entry["id"], "building_id": entry["building_id"]}
+            for entry in dep_build_cache["department_buildings"]]
+
 def get_dep_List(dep_type_id: int) -> List[dict]:
     departments = dep_build_cache.get("departments", [])
     return [{'id': dep["idDepartment"], 'name': dep["departmentName"]}
@@ -1200,6 +1328,7 @@ def get_dep_build_input(dep_build_id: int) -> str:
             build_name = get_build_name(entry["building_id"])
             res = f'{dep_name}, корпус {build_name}, {entry["description"]}'
             return res
+
 @connection
 async def dep_build_set(session: AsyncSession):
     deps = list(await session.scalars(select(tb.Department).order_by(tb.Department.department_name)))
@@ -1375,7 +1504,9 @@ async def get_drivers_payment(session: AsyncSession, last_month_12 = None, curre
     orders = result.scalars().all()
 
     for order in orders:
-        drivers_dict[order.executor.idUser] = drivers_dict[order.executor.idUser] + 1 * order.cargoType.ratio
+        # Учитываем только если исполнитель существует и его роль == 2
+        if order.executor and getattr(order.executor, 'roleId', None) == 2:
+            drivers_dict[order.executor.idUser] = drivers_dict[order.executor.idUser] + 1 * order.cargoType.ratio
 
     total_orders = sum(drivers_dict.values())
     if total_orders == 0:
@@ -1391,4 +1522,54 @@ async def get_drivers_payment(session: AsyncSession, last_month_12 = None, curre
     return mes
     
 
+@connection
+async def add_department(session: AsyncSession, name: str, type_id: int):
+    dep = tb.Department(department_name=name, department_type_id=type_id)
+    session.add(dep)
+    await session.flush()
+    return dep.department_id
+
+@connection
+async def add_building(session: AsyncSession, name: str):
+    build = tb.Building(building_name=name)
+    session.add(build)
+    await session.flush()
+    return build.building_id
+
+@connection
+async def add_department_building(session: AsyncSession, department_id: int, building_id: int, description: str = None):
+    dep_build = tb.DepartmentBuilding(department_id=department_id, building_id=building_id, description=description)
+    session.add(dep_build)
+    await session.flush()
+    return dep_build.department_building_id
+
+@connection
+async def add_department_and_building(session: AsyncSession, department_name: str, department_type_id: int, building_name: str, description: str = None):
+    dep = tb.Department(department_name=department_name, department_type_id=department_type_id)
+    session.add(dep)
+    await session.flush()
+    build = tb.Building(building_name=building_name)
+    session.add(build)
+    await session.flush()
+    dep_build = tb.DepartmentBuilding(department_id=dep.department_id, building_id=build.building_id, description=description)
+    session.add(dep_build)
+    await session.flush()
+    return dep.department_id, build.building_id, dep_build.department_building_id
+
+@connection
+async def get_weight_coefficient_by_order_id(session: AsyncSession, order_id: int) -> float:
+    logging.info(f"[get_weight_coefficient_by_order_id] Получение коэффициента веса для заказа {order_id}")
+    try:
+        order = await session.scalar(select(tb.Order).where(tb.Order.idOrder == order_id))
+        if not order:
+            raise ValueError(f"Order with id {order_id} not found")
+        weight = order.cargo_weight
+        coeff = await session.scalar(select(tb.WeightCoeff))
+        num = weight // coeff.value
+        result = num * coeff.coefficent
+        logging.debug(f"[get_weight_coefficient_by_order_id] Вес: {weight}, шаг: {coeff.value}, коэффициент: {coeff.coefficent}, результат: {result}")
+        return result
+    except Exception as e:
+        logging.error(f"[get_weight_coefficient_by_order_id] Ошибка: {e}")
+        raise
 
