@@ -1531,6 +1531,9 @@ async def add_department(session: AsyncSession, name: str, type_id: int):
 
 @connection
 async def add_building(session: AsyncSession, name: str):
+    existing = await session.scalar(select(tb.Building).where(tb.Building.building_name == name))
+    if existing:
+        return existing.building_id
     build = tb.Building(building_name=name)
     session.add(build)
     await session.flush()
