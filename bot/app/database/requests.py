@@ -313,7 +313,7 @@ async def take_order(session: AsyncSession, tg_id, order_id) -> str:
             tb.Order.orderStatusId == 2
         )
     )
-    if active_orders_count >= 10:
+    if active_orders_count >= 15:
         return 'too_many'
 
     if await check_order_status(order_id=order_id, expectStatus=[1]):
