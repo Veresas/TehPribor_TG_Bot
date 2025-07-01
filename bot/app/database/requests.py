@@ -305,17 +305,7 @@ async def chek_next_record(session: AsyncSession, end)-> bool:
 
 @connection
 async def take_order(session: AsyncSession, tg_id, order_id) -> str:
-    # Проверка на количество активных заказов
     user = await session.scalar(select(tb.User).where(tb.User.tgId == tg_id))
-    active_orders_count = await session.scalar(
-        select(func.count()).select_from(tb.Order).where(
-            tb.Order.driverId == user.idUser,
-            tb.Order.orderStatusId == 2
-        )
-    )
-    if active_orders_count >= 15:
-        return 'too_many'
-
     if await check_order_status(order_id=order_id, expectStatus=[1]):
         new_data = {
             "driverId": user.idUser,
