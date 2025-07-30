@@ -10,7 +10,7 @@ import app.database.requests as rq
 from datetime import datetime, timedelta
 import logging
 import app.utils.states as st
-
+from app.utils.help_func import clean_user_input
 
 router = Router()
 # region создание заказа
@@ -26,14 +26,14 @@ async def order_creat_start(message: Message, state:FSMContext):
 
 @router.message(st.Order.cargo_name)
 async def order_cargo_name(message: Message, state:FSMContext):
-       await state.update_data(cargo_name=message.text)
+       await state.update_data(cargo_name=clean_user_input(message.text))
        await state.update_data(tg_id=message.from_user.id)
        await state.set_state(st.Order.cargo_description)
        await message.answer('Введите краткое описание груза при необходимости. В случае отсутствия описания введите "Нет"')
 
 @router.message(st.Order.cargo_description)
 async def order_cargo_description(message: Message, state:FSMContext):
-       await state.update_data(cargo_description=message.text)
+       await state.update_data(cargo_description=clean_user_input(message.text))
        await state.set_state(st.Order.cargo_type)
        await message.answer('Пожалуйста, выберите тип груза', reply_markup= await kb.cargo_types_keyboard())
 
@@ -233,14 +233,14 @@ async def select_field_to_edit(callback: CallbackQuery, state: FSMContext):
 
 @router.message(st.EditOrder.edit_cargo_name)
 async def process_edit_cargo_name(message: Message, state: FSMContext):
-    new_cargo_name = message.text
+    new_cargo_name = clean_user_input(message.text)
     await state.update_data(edit_cargo_name=new_cargo_name) 
     await state.set_state(st.EditOrder.select_field) 
     await message.answer("Название груза обновлено.")
 
 @router.message(st.EditOrder.edit_cargo_description)
 async def process_edit_cargo_description(message: Message, state: FSMContext):
-    new_cargo_description = message.text
+    new_cargo_description = clean_user_input(message.text)
     await state.update_data(edit_cargo_description=new_cargo_description)  
     await state.set_state(st.EditOrder.select_field) 
     await message.answer("Описание груза обновлено.")

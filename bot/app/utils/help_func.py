@@ -85,3 +85,6 @@ async def set_user_commands(bot: Bot, tg_id: int):
     role = await rq.get_user_role(tg_id=tg_id)
     commands = COMMANDS_BY_ROLE.get(role)
     await bot.set_my_commands(commands, scope={"type": "chat", "chat_id": tg_id})
+
+def clean_user_input(text: str) -> str:
+    return text.replace('<', '‹').replace('>', '›')

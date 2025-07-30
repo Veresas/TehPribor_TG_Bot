@@ -12,6 +12,7 @@ import app.utils.states as st
 import app.utils.filters as fl
 import app.utils.help_func as util
 import logging
+from app.utils.help_func import clean_user_input
 
 router = Router()
 
@@ -420,7 +421,7 @@ async def add_building_choose_department(callback: CallbackQuery, state: FSMCont
 @router.message(st.AddBuilding.input_name)
 async def add_building_input_name(message: Message, state: FSMContext):
     try:
-        await state.update_data(building_name=message.text.strip())
+        await state.update_data(building_name=clean_user_input(message.text.strip()))
         await message.answer('Введите описание точки (или "-" если не требуется):')
         await state.set_state(st.AddBuilding.input_description)
     except Exception as e:
@@ -430,7 +431,7 @@ async def add_building_input_name(message: Message, state: FSMContext):
 @router.message(st.AddBuilding.input_description)
 async def add_building_input_description(message: Message, state: FSMContext):
     try:
-        desc = message.text.strip()
+        desc = clean_user_input(message.text.strip())
         await state.update_data(description=desc)
         data = await state.get_data()
         dep_id = data['department_id']

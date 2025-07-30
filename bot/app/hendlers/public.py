@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 import logging
 import app.utils.states as st
 import app.utils.help_func as util
+from app.utils.help_func import clean_user_input
 
 router = Router()
 publicRouter = Router()
@@ -46,7 +47,7 @@ async def register(message: Message, state:FSMContext):
 @publicRouter.message(st.Register.fio)
 async def register_name (message: Message, state: FSMContext):
        if valid.valid_fio(message.text):
-              await state.update_data(fio=message.text)
+              await state.update_data(fio=clean_user_input(message.text))
               await state.set_state (st.Register.number)
               await message.answer('Отправьте ваш номер телефона', reply_markup=kb.get_number)
        else:
