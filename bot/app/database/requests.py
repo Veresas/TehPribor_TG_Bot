@@ -994,7 +994,7 @@ def create_driver_diagram_weighted(period_str: str, driver_stats: dict) -> Bytes
         )
         ax1.set_title("Количество заказов по водителям с учетом веса (с разбиением по типам)")
         ax1.set_xlabel("Водитель")
-        ax1.set_ylabel("Суммарный весовой коэффициент")
+        ax1.set_ylabel("Суммарный вес")
         ax1.tick_params(axis='x', rotation=45)
         ax1.grid(True, axis='y')
         ax1.legend(title="Группа груза", bbox_to_anchor=(1.05, 1), loc='upper left')
@@ -1023,9 +1023,10 @@ async def create_driver_stats_weighted_for_export(orders, session):
     async def get_weighted(order):
         try:
             if order.executor and order.cargoType and getattr(order.executor, 'is_denied', True) == False and getattr(order.executor, 'roleId', None) == 2:
-                coeff = await get_weight_coefficient_by_order_id(order.idOrder)
-                logging.debug(f"Order {order.idOrder}: fio={order.executor.fio}, cargo={order.cargoType.cargoTypeName}, coeff={coeff}")
-                return (order.executor.fio, order.cargoType.cargoTypeName, coeff)
+                #coeff = await get_weight_coefficient_by_order_id(order.idOrder) - старый расчет коефицента
+                weight = getattr(order, 'cargo_weight', 1)
+                logging.debug(f"Order {order.idOrder}: fio={order.executor.fio}, cargo={order.cargoType.cargoTypeName}, weight={weight}")
+                return (order.executor.fio, order.cargoType.cargoTypeName, weight)
         except Exception as e:
             logging.error(f"Ошибка при вычислении коэффициента веса для заказа {getattr(order, 'idOrder', None)}: {e}")
         return None
@@ -1034,10 +1035,10 @@ async def create_driver_stats_weighted_for_export(orders, session):
     results = await asyncio.gather(*tasks)
     for res in results:
         if res:
-            fio, cargo, coeff = res
-            driver_cargo_weighted[fio][cargo] += coeff
-            driver_counts_weighted[fio] += coeff
-            cargo_counts_weighted[cargo] += coeff
+            fio, cargo, weight = res
+            driver_cargo_weighted[fio][cargo] += weight
+            driver_counts_weighted[fio] += weight
+            cargo_counts_weighted[cargo] += weight
 
     import pandas as pd
     df_driver_cargo = pd.DataFrame(driver_cargo_weighted).T.fillna(0)

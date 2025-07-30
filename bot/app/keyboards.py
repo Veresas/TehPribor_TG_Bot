@@ -106,7 +106,7 @@ exportchoice = InlineKeyboardMarkup(inline_keyboard = [
 
 diogramChoise = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='Заказы по водителям', callback_data='diogram:drivers')],
-    [InlineKeyboardButton(text='Заказы по водителям с учетом коэффициентов', callback_data='diogram:driversWithWeight')],
+    [InlineKeyboardButton(text='Заказы по водителям с учетом веса', callback_data='diogram:driversWithWeight')],
     [InlineKeyboardButton(text='Поступление из цехов', callback_data='diogram:dep')],
     [InlineKeyboardButton(text='Поступление из цехов и участков', callback_data='diogram:depBuild')],
     [InlineKeyboardButton(text='Время работы водителей', callback_data='diogram:time')],
