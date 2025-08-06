@@ -20,19 +20,19 @@ class Base(AsyncAttrs, DeclarativeBase):
 class User (Base):
     __tablename__ = 'users'
 
-    idUser: Mapped[int] = mapped_column(primary_key=True)
+    id_user: Mapped[int] = mapped_column(primary_key=True)
     tgId: Mapped[int] = mapped_column(BigInteger, unique=True)
     phone: Mapped[str] = mapped_column(String(15))
     fio: Mapped[str] = mapped_column(String(100))
-    roleId: Mapped[int] = mapped_column(ForeignKey('roles.idRole'), nullable=True)
+    role_id: Mapped[int] = mapped_column(ForeignKey('roles.id_role'), nullable=True)
     is_denied: Mapped[bool] = mapped_column(Boolean, default=False)
     disp: Mapped[list['Order']] = relationship(
         back_populates='dispatcher',
-        foreign_keys='Order.dispatcherId'
+        foreign_keys='Order.dispatcher_id'
     )
     driver: Mapped[list['Order']] = relationship(
         back_populates='executor',
-        foreign_keys='Order.driverId'
+        foreign_keys='Order.driver_id'
     )
     role: Mapped['Role'] = relationship(back_populates='users')
     locations: Mapped[list['UserLocation']] = relationship(back_populates='user')
@@ -40,16 +40,16 @@ class User (Base):
 class Role(Base):
     __tablename__ = 'roles'
     
-    idRole: Mapped[int] = mapped_column(primary_key=True)
-    roleName: Mapped[str] = mapped_column(String(50))
+    id_role: Mapped[int] = mapped_column(primary_key=True)
+    role_name: Mapped[str] = mapped_column(String(50))
     
     users: Mapped[list['User']] = relationship(back_populates='role')
 
 class UserLocation(Base):
-    __tablename__ = 'userLocations'
+    __tablename__ = 'user_locations'
     
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey('users.idUser'), nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id_user'), nullable=False)
     latitude: Mapped[float] = mapped_column(Float, nullable=False)
     longitude: Mapped[float] = mapped_column(Float, nullable=False)
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -67,55 +67,55 @@ class UserLocation(Base):
 class Order (Base):
     __tablename__= 'orders'
 
-    idOrder: Mapped[int] = mapped_column(primary_key=True)
-    cargoName: Mapped[str] = mapped_column(Text())
-    cargoDescription: Mapped[str] = mapped_column(Text())
-    cargoTypeId: Mapped[int] = mapped_column(ForeignKey('cargoTypes.idCargoType'))
+    id_order: Mapped[int] = mapped_column(primary_key=True)
+    cargo_name: Mapped[str] = mapped_column(Text())
+    cargo_description: Mapped[str] = mapped_column(Text())
+    cargo_type_id: Mapped[int] = mapped_column(ForeignKey('cargo_types.id_cargo_type'))
     cargo_weight: Mapped[float] = mapped_column(Float)
     depart_loc: Mapped[int] = mapped_column(ForeignKey('department_buildings.department_building_id'))
     goal_loc: Mapped[int] = mapped_column(ForeignKey('department_buildings.department_building_id'))
     time: Mapped[DateTime] = mapped_column(DateTime())
-    orderStatusId: Mapped[int] = mapped_column(ForeignKey('orderStatuses.idOrderStatus'))
-    dispatcherId: Mapped[int] = mapped_column(ForeignKey('users.idUser'))
-    driverId: Mapped[int | None] = mapped_column(
-        ForeignKey('users.idUser'),
+    order_status_id: Mapped[int] = mapped_column(ForeignKey('order_statuses.id_order_status'))
+    dispatcher_id: Mapped[int] = mapped_column(ForeignKey('users.id_user'))
+    driver_id: Mapped[int | None] = mapped_column(
+        ForeignKey('users.id_user'),
         nullable=True
     )
-    photoId: Mapped[str|None] = mapped_column(String(255), nullable=True)
+    photo_id: Mapped[str|None] = mapped_column(String(255), nullable=True)
     pickup_time: Mapped[DateTime|None] = mapped_column(DateTime())
     completion_time: Mapped[DateTime|None] = mapped_column(DateTime())
     create_order_time: Mapped[DateTime] = mapped_column(DateTime())
-    isUrgent: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    isPostponed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    driverRate: Mapped[int| None] = mapped_column(default=None)
+    is_urgent: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_postponed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    driver_rate: Mapped[int| None] = mapped_column(default=None)
     
     cargoType: Mapped['CargoType'] = relationship(back_populates='orders')
     orderStatus: Mapped['OrderStatus'] = relationship(back_populates='orders')
     dispatcher: Mapped['User'] = relationship(
         back_populates='disp',
-        foreign_keys=[dispatcherId]
+        foreign_keys=[dispatcher_id]
     )
     executor: Mapped['User | None'] = relationship(
         back_populates='driver',
-        foreign_keys=[driverId]
+        foreign_keys=[driver_id]
     )
     depart_loc_ref: Mapped['DepartmentBuilding'] = relationship(foreign_keys=[depart_loc])
     goal_loc_ref: Mapped['DepartmentBuilding'] = relationship(foreign_keys=[goal_loc])
 
 class CargoType (Base):
-    __tablename__='cargoTypes'
+    __tablename__='cargo_types'
 
-    idCargoType: Mapped[int] = mapped_column(primary_key=True)
-    cargoTypeName: Mapped[str] =  mapped_column(String(50))
+    id_cargo_type: Mapped[int] = mapped_column(primary_key=True)
+    cargo_type_name: Mapped[str] =  mapped_column(String(50))
     ratio: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
 
     orders: Mapped[list['Order']] = relationship(back_populates='cargoType')
 
 class OrderStatus (Base):
-    __tablename__= 'orderStatuses'
+    __tablename__= 'order_statuses'
 
-    idOrderStatus: Mapped[int] = mapped_column(primary_key=True)
-    orderStatusName: Mapped[str] = mapped_column(String(40))
+    id_order_status: Mapped[int] = mapped_column(primary_key=True)
+    order_status_name: Mapped[str] = mapped_column(String(40))
 
     orders: Mapped[list['Order']] = relationship(back_populates='orderStatus')
 

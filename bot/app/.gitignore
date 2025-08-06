@@ -12,3 +12,4 @@ venv/
 # Исключить файлы кэша Python
 __pycache__/
 *.pyc
+.trash/
