@@ -121,7 +121,8 @@ async def alarm_for_drivers(session: AsyncSession, orderId, bot: Bot):
     order = await session.scalar(select(tb.Order).options(joinedload(tb.Order.cargoType)).where(tb.Order.id_order == orderId))
     mes = f'Срочный заказ:\n\n' + await form_order(order=order, cargo_type=order.cargoType.cargo_type_name)
     for driver in drivers:
-        await bot.send_message(driver.tgId, mes, reply_markup=await kb.alarm_kb(orderId=orderId), parse_mode="HTML")
+        if (driver.tgId != None):
+            await bot.send_message(driver.tgId, mes, reply_markup=await kb.alarm_kb(orderId=orderId), parse_mode="HTML")
 
 statuses = {
     1: "Доступен",
@@ -355,7 +356,7 @@ async def get_user_for_send(session: AsyncSession, orderId, driver_id, action_te
 
 @connection
 async def get_drivers_for_alarm(session: AsyncSession, order):
-    drivers = await session.scalars(select(tb.User).where(tb.User.role_id == 2))
+    drivers = await session.scalars(select(tb.User).where(tb.User.role_id == 2).where(tb.User.tgId != None))
 
 @connection
 async def complete_order(session: AsyncSession, tg_id, order_id)-> bool:
@@ -629,8 +630,8 @@ async def notificationDrivers(session: AsyncSession,  bot: Bot):
     for order in orders:
         mes = "Напоминание:\n\n" + await form_order(order=order, cargo_type=order.cargoType.cargo_type_name)
         try:
-
-            await bot.send_message(order.executor.tgId, mes)
+            if (order.executor.tgId != None):
+                await bot.send_message(order.executor.tgId, mes)
         except Exception as e:
             logging.error(f"Ошибка отправки сообщения для заказа {order.id_order}: {e}")
 
@@ -652,8 +653,8 @@ async def notiNewOrders(session: AsyncSession,  bot: Bot):
         drivers = drivers.all()
         for driver in drivers:
             try:
-
-                await bot.send_message(driver.tgId, f'Доступно {countOrders} заказ(ов)')
+                if (driver.tgId != None):
+                    await bot.send_message(driver.tgId, f'Доступно {countOrders} заказ(ов)')
             except Exception as e:
                 logging.error(f"Ошибка отправки сообщения для водителя {driver.tgId}: {e}")
 
