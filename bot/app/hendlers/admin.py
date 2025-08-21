@@ -568,6 +568,15 @@ async def start_add_dep_and_build(message: Message, state: FSMContext):
         logging.error(f"Ошибка в start_add_dep_and_build: {e}")
         await message.answer('Ошибка при запуске добавления отдела и корпуса.')
 
+@router.message(fl.RoleFilter("Администратор, Мастер_админ"), Command('locs'))
+async def export_delivery_points(message: Message):
+    try:
+        file = await rq.export_delivery_points_to_excel()
+        await message.answer_document(file, caption="Выгрузка точек доставки")
+    except Exception as e:
+        logging.error(f"Ошибка при экспорте точек доставки: {e}")
+        await message.answer("Произошла ошибка при экспорте точек доставки. Попробуйте позже.")
+
 @router.callback_query(st.AddDepartmentAndBuilding.choose_type, F.data.startswith('dep_type_choise:'))
 async def dep_and_build_choose_type(callback: CallbackQuery, state: FSMContext):
     try:

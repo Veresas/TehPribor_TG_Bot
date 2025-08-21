@@ -1565,3 +1565,61 @@ async def get_weight_coefficient_by_order_id(session: AsyncSession, order_id: in
         logging.error(f"[get_weight_coefficient_by_order_id] Ошибка: {e}")
         raise
 
+@connection
+async def export_delivery_points_to_excel(session: AsyncSession) -> BufferedInputFile:
+    """
+    Экспорт списка точек доставки в Excel файл
+    """
+    try:
+        # Формируем запрос с загрузкой связанных данных
+        stmt = (
+            select(tb.DepartmentBuilding)
+            .options(joinedload(tb.DepartmentBuilding.department))
+            .options(joinedload(tb.DepartmentBuilding.building))
+            .order_by(tb.DepartmentBuilding.department_id, tb.DepartmentBuilding.building_id)
+        )
+
+        result = await session.execute(stmt)
+        delivery_points = result.scalars().all()
+
+        if not delivery_points:
+            raise ValueError("В базе данных нет точек доставки")
+
+        # Подготавливаем данные для DataFrame
+        data = []
+        for point in delivery_points:
+            data.append({
+                'Id': point.department_building_id,
+                'Отдел': point.department.department_name if point.department else "Не указан",
+                'Здание': point.building.building_name if point.building else "Не указано",
+                'Описание': point.description if point.description else "Не указано"
+            })
+
+        df = pd.DataFrame(data)
+
+        # Создаем Excel файл
+        excel_file = BytesIO()
+        with pd.ExcelWriter(excel_file, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='Delivery Points')
+            worksheet = writer.sheets['Delivery Points']
+
+            # Настраиваем ширину колонок
+            for idx, column in enumerate(df.columns, 1):
+                max_length = max(df[column].astype(str).map(len).max(), len(column)) + 2
+                worksheet.column_dimensions[get_column_letter(idx)].width = max_length
+
+        excel_file.seek(0)
+        
+        filename = f"delivery_points_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        
+        file_for_telegram = BufferedInputFile(
+            file=excel_file.getvalue(),
+            filename=filename
+        )
+
+        return file_for_telegram
+
+    except Exception as e:
+        logging.error(f"Ошибка при экспорте точек доставки в Excel: {e}")
+        raise
+
